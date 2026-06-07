@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug example_json",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/examples/example_json",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "CMake build"
+        }
+    ]
+}

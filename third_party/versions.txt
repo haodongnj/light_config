@@ -1,0 +1,5 @@
+yalantinglibs 0.6.1
+Upstream: https://github.com/alibaba/yalantinglibs
+Upstream tag: v0.6.1
+Upstream commit: 8c1f2ea927a5a879046067a686599f825a370858
+Vendored in light_config at: fc08c427ce0a0b2108f204df403ecb76c67e7f56

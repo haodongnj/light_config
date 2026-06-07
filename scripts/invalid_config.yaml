@@ -1,0 +1,9 @@
+server_host: 0.0.0.0
+port: 65536
+debug: false
+log_file: ""
+max_connections: 100001
+timeout_sec: 86401.0
+allowed_origins:
+  - "example"
+backlog: 4097
