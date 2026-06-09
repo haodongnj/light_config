@@ -1,9 +1,12 @@
-field_name,type,default,min,max,description
-server_host,string,"0.0.0.0",,,IP address to bind
-port,int,8080,1024,65535,Listening port
-debug,bool,false,,,Enable debug logging
-log_file,string,,,,"Optional log file path"
-max_connections,int,1000,1,100000,Max concurrent connections
-timeout_sec,double,30.0,0.5,86400,Connection timeout in seconds
-allowed_origins,vector<string>,,,,"Allowed CORS origins"
-backlog,int,128,1,4096,TCP listen backlog
+field_name,group,type,default,min,max,description
+debug,AppConfig,bool,false,,,Enable debug logging
+log_file,AppConfig,string,,,,"Optional log file path"
+allowed_origins,AppConfig,vector<string>,,,,"Allowed CORS origins"
+server,AppConfig,ServerConfig,,,,Backend server configuration
+connection,AppConfig,ConnectionConfig,,,,Connection settings
+host,ServerConfig,string,"0.0.0.0",,,IP address to bind
+port,ServerConfig,int,8080,1024,65535,Listening port
+backlog,ServerConfig,int,128,1,4096,TCP listen backlog
+max_connections,ConnectionConfig,int,1000,1,100000,Max concurrent connections
+timeout_sec,ConnectionConfig,double,30.0,0.5,86400,Connection timeout in seconds
+cert_file,ConnectionConfig,string,,,,TLS certificate file path (optional)

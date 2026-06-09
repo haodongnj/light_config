@@ -191,48 +191,34 @@ A field's presence in the config file interacts with its C++ declaration:
 
 ## End-to-end validation
 
-The library loads and audits. Range validation can be hand-written or
-generated from a CSV schema. Here is a complete pattern combining both:
+The library loads and audits; validation is generated from CSV. Here is the
+complete pattern using a generated compound config header:
 
 ```cpp
 #include <light_config/light_config.hpp>
-#include <sstream>
+#include "app_config.hpp"  // generated from CSV
 #include <iostream>
 
-struct ServerConfig {
-    std::string host = "0.0.0.0";
-    int port          = 8080;
-    std::optional<int> max_connections;
-};
-YLT_REFL(ServerConfig, host, port, max_connections);
-
 int main() {
-    ServerConfig cfg;
-    auto r = light_config::load(cfg, "server.json");
+    AppConfig cfg;
+    auto r = light_config::load(cfg, "config.json");
     if (!r.ok()) {
         std::cerr << "Failed to load config: " << r.message << '\n';
         return 1;
     }
 
-    // Warn about missing optional fields.
+    // Warn about missing optional fields (including nested, dot-separated).
     for (auto& name : r.absent_optionals)
         std::cerr << "warning: '" << name << "' not set, using default\n";
 
-    // Validate value ranges.
-    if (cfg.port < 1024 || cfg.port > 65535) {
-        std::cerr << "port out of range [1024, 65535]\n";
+    // Validate all range constraints — recurses into Server and Connection.
+    auto v = validate_AppConfig(cfg);
+    if (!v.ok()) {
+        std::cerr << v.message << '\n';
         return 1;
     }
-    if (cfg.max_connections.has_value()) {
-        int v = cfg.max_connections.value();
-        if (v < 1 || v > 100000) {
-            std::cerr << "max_connections = " << v
-                      << " out of range [1, 100000]\n";
-            return 1;
-        }
-    }
 
-    std::cout << "Config loaded successfully.\n";
+    std::cout << "Config loaded and validated successfully.\n";
 }
 ```
 
@@ -247,7 +233,7 @@ struct and a `validate_<Name>()` function that returns a `LoadResult`.
 ```bash
 python3 scripts/gen_config.py \
   --input scripts/sample_config.csv \
-  --struct-name MyConfig \
+   MyConfig \
   --output include/my_config.hpp
 ```
 
@@ -261,19 +247,64 @@ python3 scripts/gen_config.py \
 | `min` | Inclusive lower bound (int/double only; empty = no lower bound) |
 | `max` | Inclusive upper bound (int/double only; empty = no upper bound) |
 | `description` | Emitted as a `//` comment in the generated header |
+| `group` | The exact C++ struct type name (e.g. `ServerConfig`, `ConnectionConfig`). Every row must have a non-empty `group` value. |
+
+### Nested structs
+
+When rows share a non-empty `group` value, the generator creates a separate
+nested struct for each group, each with its own `YLT_REFL` macro. The parent
+struct includes the nested struct as a member named after the group.
+
+Example CSV with containment expressed via the `type` column:
+
+```csv
+field_name,group,type,default,min,max,description
+backend,AppConfig,ServerConfig,,,,Backend server config
+host,ServerConfig,string,"localhost",,,Backend hostname
+port,ServerConfig,int,8080,1,65535,Backend port
+```
+
+The row `backend,AppConfig,ServerConfig` means: "AppConfig contains a
+member named `backend` of type `ServerConfig`".  The root struct is
+auto-detected as the group that no other group references.
+
+Generates:
+
+```cpp
+struct ServerConfig {
+    std::string host = "localhost";
+    int port = 8080;
+};
+YLT_REFL(ServerConfig, host, port);
+
+struct AppConfig {
+    // ... own fields ...
+    ServerConfig backend;
+};
+YLT_REFL(AppConfig, ..., backend);
+```
+
+The `validate_AppConfig()` function automatically calls `validate_Server()`
+to recurse into nested struct members.
+
+When loading configs with nested structs, `absent_optionals` and
+`present_fields` use dot-separated paths (e.g., `"server.port"`,
+`"server.host"`) to identify nested fields.
+
 
 ### Workflow
 
-1. Define your fields in a CSV:
+1. Define your fields in a CSV (top-level and grouped):
+   ```csv
+   field_name,group,type,default,min,max,description
+   debug,AppConfig,bool,false,,,Enable debug logging
+   server,AppConfig,ServerConfig,,,,Backend server
+   host,ServerConfig,string,"0.0.0.0",,,Bind address
+   port,ServerConfig,int,8080,1024,65535,Listening port
    ```
-   field_name,type,default,min,max,description
-   host,string,"0.0.0.0",,,Bind address
-   port,int,8080,1024,65535,Listening port
-   timeout,double,30.0,0.5,86400,Timeout in seconds
-   ```
-2. Generate the header:
+2. Generate the header (root is auto-detected from containment):
    ```bash
-   python3 scripts/gen_config.py -i schema.csv -s AppConfig -o include/app_config.hpp
+   python3 scripts/gen_config.py -i schema.csv -o include/app_config.hpp
    ```
 3. Include and use in your application:
    ```cpp

@@ -3,19 +3,18 @@
 CSV-driven config-header generator for light_config.
 
 Takes a CSV with columns:
-    field_name, type, default, min, max, description
+    field_name, group, type, default, min, max, description
 
-and generates:
+Every row belongs to a struct via the 'group' column (the exact C++ struct
+type name).  Containment is expressed in the CSV itself: when a row's 'type'
+matches another group name, that struct becomes a nested member of the current
+group.  The member field name comes from 'field_name'.
 
-  1. A C++ struct with YLT_REFL reflection annotation.
-  2. A validate_<StructName>() function that checks min/max ranges
-     for int and double fields and returns light_config::LoadResult.
-  3. (Optional) Sample JSON and YAML config files — one valid set using
-     defaults, and one invalid set with out-of-range values that
-     exercise every range constraint.
+The root struct is auto-detected: the group that no other group references as
+a member type.
 
 Usage:
-    python3 scripts/gen_config.py --input schema.csv --struct-name MyConfig --output include/my_config.hpp
+    python3 scripts/gen_config.py --input schema.csv --output include/my_config.hpp
     python3 scripts/gen_config.py ... --generate-samples  # also emit .json + .yaml samples
 """
 
@@ -23,6 +22,7 @@ import argparse
 import csv
 import json
 import sys
+from collections import OrderedDict
 from pathlib import Path
 
 
@@ -31,7 +31,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 def map_type(csv_type: str) -> str:
-    """Map CSV type string to C++ type."""
+    """Map CSV type string to C++ type, or pass through if not a built-in."""
     mapping = {
         "int": "int",
         "double": "double",
@@ -41,13 +41,10 @@ def map_type(csv_type: str) -> str:
         "vector<int>": "std::vector<int>",
         "vector<double>": "std::vector<double>",
     }
-    if csv_type in mapping:
-        return mapping[csv_type]
-    return csv_type
+    return mapping.get(csv_type, csv_type)
 
 
 def _parse_default(val: str, csv_type: str) -> object:
-    """Parse a CSV default string into a Python value."""
     val = val.strip()
     if csv_type == "int":
         return int(val)
@@ -61,7 +58,6 @@ def _parse_default(val: str, csv_type: str) -> object:
 
 
 def _example_value(csv_type: str) -> object:
-    """Return a plausible example value for a type."""
     if csv_type == "int":
         return 0
     if csv_type == "double":
@@ -80,7 +76,6 @@ def _example_value(csv_type: str) -> object:
 
 
 def _violating_value(min_val: str, max_val: str, csv_type: str) -> object:
-    """Return a value that violates min/max, for testing."""
     if csv_type == "int":
         if max_val:
             return int(max_val) + 1
@@ -93,7 +88,6 @@ def _violating_value(min_val: str, max_val: str, csv_type: str) -> object:
 
 
 def _field_value(row: dict, use_default: bool = True, violate: bool = False) -> object:
-    """Return a JSON/YAML-appropriate value for a field."""
     csv_type = row["type"].strip()
     default = (row.get("default") or "").strip()
 
@@ -102,7 +96,6 @@ def _field_value(row: dict, use_default: bool = True, violate: bool = False) -> 
             return _parse_default(default, csv_type)
         return _example_value(csv_type)
 
-    # Generate a violating value for range-constrained fields.
     min_val = (row.get("min") or "").strip()
     max_val = (row.get("max") or "").strip()
     if violate and csv_type in ("int", "double") and (min_val or max_val):
@@ -116,8 +109,20 @@ def _field_value(row: dict, use_default: bool = True, violate: bool = False) -> 
 # C++ code generation
 # ---------------------------------------------------------------------------
 
+def _preamble(has_optional: bool) -> str:
+    inc_opt = "#include <optional>" if has_optional else ""
+    return f"""#pragma once
+
+/// Auto-generated config struct from CSV schema.
+/// DO NOT EDIT BY HAND — regenerate with scripts/gen_config.py.
+
+#include <light_config/light_config.hpp>
+#include <string>
+#include <vector>
+{inc_opt}"""
+
+
 def escape_default(val: str, cpp_type: str) -> str:
-    """Return a C++ literal for the default value, or empty string."""
     if val is None or val.strip() == "":
         return ""
     val = val.strip()
@@ -126,15 +131,25 @@ def escape_default(val: str, cpp_type: str) -> str:
     return val
 
 
-def make_struct(rows: list[dict], struct_name: str) -> str:
-    """Generate the C++ struct definition."""
+def _make_struct_body(struct_name: str,
+                      regular_rows: list[dict],
+                      nested_members: list[tuple[str, str]]) -> tuple[str, bool]:
+    """Generate struct definition body.
+
+    Args:
+        struct_name: the C++ struct type name.
+        regular_rows: rows with built-in types (int, string, etc.).
+        nested_members: list of (member_name, nested_type_name).
+
+    Returns (body_string, has_optional).
+    """
     lines: list[str] = []
     has_optional = False
 
-    for row in rows:
+    for row in regular_rows:
         fname = row["field_name"].strip()
         ftype_cell = row["type"].strip()
-        default_cell = row.get("default", "").strip() if row.get("default") else ""
+        default_cell = (row.get("default") or "").strip()
         cpp_type = map_type(ftype_cell)
         default_literal = escape_default(default_cell, cpp_type)
 
@@ -148,36 +163,34 @@ def make_struct(rows: list[dict], struct_name: str) -> str:
         else:
             lines.append(f"    {cpp_type} {fname} = {default_literal};")
 
+    # Nested struct members
+    for member_name, nested_type in nested_members:
+        desc_for_nested = ""
+        for row in regular_rows:  # we won't have desc for nested, skip
+            pass
+        lines.append(f"    {nested_type} {member_name};")
+
     body = "\n".join(lines)
-    refl_fields = ", ".join(r["field_name"].strip() for r in rows)
+    refl_fields = [r["field_name"].strip() for r in regular_rows]
+    refl_fields.extend(m for m, _ in nested_members)
+    refl_str = ", ".join(refl_fields)
 
-    include_optional = "#include <optional>" if has_optional else ""
-
-    return f"""#pragma once
-
-/// Auto-generated config struct from CSV schema.
-/// DO NOT EDIT BY HAND — regenerate with scripts/gen_config.py.
-
-#include <light_config/light_config.hpp>
-#include <string>
-#include <vector>
-{include_optional}
-
-struct {struct_name} {{
+    return f"""struct {struct_name} {{
 {body}
 }};
-YLT_REFL({struct_name}, {refl_fields});
-"""
+YLT_REFL({struct_name}, {refl_str});""", has_optional
 
 
-def make_validate(rows: list[dict], struct_name: str) -> str:
-    """Generate the validate function that checks min/max ranges."""
+def _make_validate_func(struct_name: str,
+                        regular_rows: list[dict],
+                        nested_members: list[tuple[str, str]]) -> str:
+    """Generate validate_<StructName>() with range checks and recursion."""
     checks: list[str] = []
     has_validation = False
 
-    for row in rows:
+    for row in regular_rows:
         fname = row["field_name"].strip()
-        default_cell = row.get("default", "").strip() if row.get("default") else ""
+        default_cell = (row.get("default") or "").strip()
         min_val = (row.get("min") or "").strip()
         max_val = (row.get("max") or "").strip()
 
@@ -217,6 +230,17 @@ def make_validate(rows: list[dict], struct_name: str) -> str:
         checks.append(check_block)
         has_validation = True
 
+    # Recurse into nested struct members
+    for member_name, nested_type in nested_members:
+        recurse_block = f"""    {{
+        auto r = validate_{nested_type}(cfg.{member_name});
+        if (!r.ok()) {{
+            errors.push_back("{member_name}: " + r.message);
+        }}
+    }}"""
+        checks.append(recurse_block)
+        has_validation = True
+
     if not has_validation:
         return f"""/// Validate range constraints from CSV schema.
 /// No range constraints defined; always succeeds.
@@ -227,9 +251,7 @@ inline light_config::LoadResult validate_{struct_name}(
 """
 
     body = "\n".join(checks)
-    return f"""#include <sstream>
-
-/// Validate range constraints defined in the CSV schema.
+    return f"""/// Validate range constraints defined in the CSV schema.
 /// Returns light_config::ErrorCode::kOk on success,
 /// kValidationError with detail on failure.
 inline light_config::LoadResult validate_{struct_name}(
@@ -255,12 +277,23 @@ inline light_config::LoadResult validate_{struct_name}(
 # Sample config generation (JSON + YAML)
 # ---------------------------------------------------------------------------
 
-def _build_config_dict(rows: list[dict], use_default: bool, violate: bool) -> dict:
-    d: dict[str, object] = {}
-    for row in rows:
-        fname = row["field_name"].strip()
-        d[fname] = _field_value(row, use_default=use_default, violate=violate)
-    return d
+def _build_sample_dict(group_regular: dict[str, list[dict]],
+                       group_nested: dict[str, list[tuple[str, str]]],
+                       all_groups: dict[str, list[dict]],
+                       root: str,
+                       use_default: bool, violate: bool) -> dict:
+    """Recursively build a nested dict for JSON/YAML output."""
+
+    def _build_for_group(group_name: str) -> dict:
+        d: dict[str, object] = {}
+        for row in group_regular.get(group_name, []):
+            fname = row["field_name"].strip()
+            d[fname] = _field_value(row, use_default=use_default, violate=violate)
+        for member_name, nested_type in group_nested.get(group_name, []):
+            d[member_name] = _build_for_group(nested_type)
+        return d
+
+    return _build_for_group(root)
 
 
 def _write_json(data: dict, path: Path) -> None:
@@ -308,28 +341,7 @@ def _yaml_scalar(v: object) -> str:
     return str(v)
 
 
-def write_sample_configs(rows: list[dict], output_dir: str) -> tuple[Path, Path, Path, Path]:
-    """Write valid and invalid JSON + YAML sample files. Returns the four paths."""
-    outdir = Path(output_dir)
-    outdir.mkdir(parents=True, exist_ok=True)
-
-    valid_json = outdir / "valid_config.json"
-    valid_yaml = outdir / "valid_config.yaml"
-    invalid_json = outdir / "invalid_config.json"
-    invalid_yaml = outdir / "invalid_config.yaml"
-
-    valid_data = _build_config_dict(rows, use_default=True, violate=False)
-    invalid_data = _build_config_dict(rows, use_default=False, violate=True)
-
-    _write_json(valid_data, valid_json)
-    _write_yaml(valid_data, valid_yaml)
-    _write_json(invalid_data, invalid_json)
-    _write_yaml(invalid_data, invalid_yaml)
-
-    return valid_json, valid_yaml, invalid_json, invalid_yaml
-
-
-def has_range_constraints(rows: list[dict]) -> bool:
+def _has_range_constraints(rows: list[dict]) -> bool:
     for row in rows:
         if (row.get("min") or "").strip() or (row.get("max") or "").strip():
             return True
@@ -340,7 +352,7 @@ def has_range_constraints(rows: list[dict]) -> bool:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def generate(input_path: str, struct_name: str, output_path: str,
+def generate(input_path: str, output_path: str,
              generate_samples: bool = False, sample_dir: str = "") -> None:
     inpath = Path(input_path)
     if not inpath.exists():
@@ -356,29 +368,127 @@ def generate(input_path: str, struct_name: str, output_path: str,
         sys.exit(1)
 
     header = set(reader.fieldnames or [])
-    missing = {"field_name", "type"} - header
+    missing = {"field_name", "group", "type"} - header
     if missing:
         print(f"Error: CSV missing required columns: {missing}", file=sys.stderr)
         sys.exit(1)
 
-    header_src = make_struct(rows, struct_name)
-    validate_src = make_validate(rows, struct_name)
+    # Partition rows by group.
+    all_groups: dict[str, list[dict]] = OrderedDict()
+    for row in rows:
+        group = (row.get("group") or "").strip()
+        if group == "":
+            print("Error: every row must have a non-empty 'group' value.",
+                  file=sys.stderr)
+            sys.exit(1)
+        all_groups.setdefault(group, []).append(row)
 
+    group_names = set(all_groups.keys())
+
+    # Classify each group's rows:
+    #   regular_rows: type is a built-in (not another group name)
+    #   nested_members: type matches another group → (member_field_name, nested_group)
+    group_regular: dict[str, list[dict]] = {}
+    group_nested: dict[str, list[tuple[str, str]]] = {}
+
+    for gname, grows in all_groups.items():
+        regular: list[dict] = []
+        nested: list[tuple[str, str]] = []
+        for row in grows:
+            csv_type = row["type"].strip()
+            if csv_type in group_names:
+                nested.append((row["field_name"].strip(), csv_type))
+            else:
+                regular.append(row)
+        group_regular[gname] = regular
+        group_nested[gname] = nested
+
+    # Find root: the group not referenced as a member type by any other group.
+    referenced: set[str] = set()
+    for nested_list in group_nested.values():
+        for _, nested_type in nested_list:
+            referenced.add(nested_type)
+
+    roots = [g for g in all_groups if g not in referenced]
+    if len(roots) == 0:
+        print("Error: circular containment detected — no root struct found.",
+              file=sys.stderr)
+        sys.exit(1)
+    if len(roots) > 1:
+        print(f"Warning: multiple root candidates {roots}; using '{roots[0]}'.",
+              file=sys.stderr)
+    root = roots[0]
+
+    # Sort groups topologically: groups that are referenced by others come first.
+    # Simple approach: all non-root groups first (they are referenced), root last.
+    non_roots = [g for g in all_groups if g != root]
+    ordered_groups = non_roots + [root]
+
+    # Check for optional fields.
+    all_has_optional = False
+    for gname in ordered_groups:
+        for row in group_regular[gname]:
+            if not (row.get("default") or "").strip():
+                all_has_optional = True
+                break
+
+    preamble = _preamble(all_has_optional)
+    output_lines: list[str] = [preamble, ""]
+
+    # Generate struct definitions (non-root first, root last).
+    for gname in ordered_groups:
+        body, _ = _make_struct_body(gname, group_regular[gname], group_nested[gname])
+        output_lines.append(body)
+        output_lines.append("")
+
+    # Validation code.
+    output_lines.append("#include <sstream>")
+    output_lines.append("")
+
+    for gname in ordered_groups:
+        validate_fn = _make_validate_func(gname, group_regular[gname], group_nested[gname])
+        output_lines.append(validate_fn)
+        output_lines.append("")
+
+    # Write output.
     outpath = Path(output_path)
     outpath.parent.mkdir(parents=True, exist_ok=True)
     with open(outpath, "w") as f:
-        f.write(header_src)
-        f.write("\n")
-        f.write(validate_src)
+        f.write("\n".join(output_lines))
 
-    print(f"Generated {output_path} ({len(rows)} fields)")
+    print(f"Generated {output_path} "
+          f"(root: {root}, "
+          f"{len(ordered_groups)} struct(s), "
+          f"{sum(len(v) for v in group_regular.values())} fields)")
 
+    # Sample configs.
     if generate_samples:
         sdir = sample_dir if sample_dir else outpath.parent
-        vj, vy, ij, iy = write_sample_configs(rows, str(sdir))
+        outdir = Path(sdir)
+        outdir.mkdir(parents=True, exist_ok=True)
+
+        valid_data = _build_sample_dict(group_regular, group_nested,
+                                        all_groups, root,
+                                        use_default=True, violate=False)
+        invalid_data = _build_sample_dict(group_regular, group_nested,
+                                          all_groups, root,
+                                          use_default=False, violate=True)
+
+        vj = outdir / "valid_config.json"
+        vy = outdir / "valid_config.yaml"
+        ij = outdir / "invalid_config.json"
+        iy = outdir / "invalid_config.yaml"
+
+        _write_json(valid_data, vj)
+        _write_yaml(valid_data, vy)
         print(f"Generated {vj}")
         print(f"Generated {vy}")
-        if has_range_constraints(rows):
+
+        has_any_range = any(_has_range_constraints(rows)
+                           for rows in group_regular.values())
+        if has_any_range:
+            _write_json(invalid_data, ij)
+            _write_yaml(invalid_data, iy)
             print(f"Generated {ij} (out-of-range values)")
             print(f"Generated {iy} (out-of-range values)")
         else:
@@ -391,8 +501,6 @@ def main() -> None:
     )
     parser.add_argument("--input", "-i", required=True,
                         help="Path to CSV schema file.")
-    parser.add_argument("--struct-name", "-s", required=True,
-                        help="Name of the generated C++ struct.")
     parser.add_argument("--output", "-o", required=True,
                         help="Path to output header file.")
     parser.add_argument("--generate-samples", action="store_true",
@@ -401,7 +509,7 @@ def main() -> None:
     parser.add_argument("--sample-dir", default="",
                         help="Directory for sample configs (default: same as output).")
     args = parser.parse_args()
-    generate(args.input, args.struct_name, args.output,
+    generate(args.input, args.output,
              generate_samples=args.generate_samples,
              sample_dir=args.sample_dir)
 

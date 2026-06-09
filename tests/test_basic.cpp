@@ -36,6 +36,21 @@ struct NoOptionalConfig {
 };
 YLT_REFL(NoOptionalConfig, a, b);
 
+// ---- Nested struct for recursive audit testing ----
+
+struct InnerCfg {
+    std::string host = "default";
+    std::optional<int> port;
+};
+YLT_REFL(InnerCfg, host, port);
+
+struct OuterCfg {
+    std::string app_name;
+    int version = 1;
+    InnerCfg inner;
+};
+YLT_REFL(OuterCfg, app_name, version, inner);
+
 // ---- JSON Tests ----
 
 void test_json_all_fields_present() {
@@ -93,8 +108,6 @@ void test_json_optional_explicit_null() {
         "opt_b": 5
     })");
     assert(r.ok());
-    // opt_a was explicitly null → DOM has the key, so it's marked "present".
-    // iguana will leave it as nullopt.
     assert(!cfg.opt_a.has_value());
     assert(cfg.opt_b.has_value() && cfg.opt_b.value() == 5);
     assert(r.present_fields.size() == 2);
@@ -142,6 +155,50 @@ void test_json_missing_file() {
     std::cout << "[PASS] JSON missing file error reported.\n";
 }
 
+// ---- Nested struct tests ----
+
+void test_json_nested_all_present() {
+    OuterCfg cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "app_name": "myapp",
+        "version": 2,
+        "inner": {
+            "host": "10.0.0.1",
+            "port": 9999
+        }
+    })");
+    assert(r.ok());
+    assert(cfg.app_name == "myapp");
+    assert(cfg.version == 2);
+    assert(cfg.inner.host == "10.0.0.1");
+    assert(cfg.inner.port.has_value() && cfg.inner.port.value() == 9999);
+    // Check dot-separated field paths for nested fields
+    assert(r.present_fields.size() == 5);  // app_name, version, inner, inner.host, inner.port
+    assert(r.absent_optionals.empty());
+    std::cout << "[PASS] JSON nested struct all present.\n";
+}
+
+void test_json_nested_some_absent() {
+    OuterCfg cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "app_name": "myapp",
+        "inner": {
+            "host": "10.0.0.1"
+        }
+    })");
+    assert(r.ok());
+    assert(cfg.app_name == "myapp");
+    assert(cfg.inner.host == "10.0.0.1");
+    assert(!cfg.inner.port.has_value());
+    // inner.port is absent from JSON
+    auto has_port_absent = false;
+    for (auto& name : r.absent_optionals) {
+        if (name == "inner.port") has_port_absent = true;
+    }
+    assert(has_port_absent);
+    std::cout << "[PASS] JSON nested struct: inner.port absent.\n";
+}
+
 // ---- YAML Tests ----
 
 void test_yaml_basic() {
@@ -165,7 +222,6 @@ tags:
     assert(cfg.opt_str.has_value() && cfg.opt_str.value() == "present");
     assert(cfg.numbers.size() == 2);
     assert(r.present_fields.size() == 7);
-    // opt_int, opt_double absent (nullopt after loading)
     assert(r.absent_optionals.size() == 2);
     std::cout << "[PASS] YAML basic load.\n";
 }
@@ -242,6 +298,10 @@ int main() {
     test_json_parse_error();
     test_json_missing_file();
 
+    // Nested struct
+    test_json_nested_all_present();
+    test_json_nested_some_absent();
+
     // YAML
     test_yaml_basic();
     test_yaml_empty();
@@ -252,6 +312,6 @@ int main() {
     test_auto_detect_yml();
     test_auto_detect_no_extension();
 
-    std::cout << "\nAll " << 13 << " tests passed.\n";
+    std::cout << "\nAll " << 15 << " tests passed.\n";
     return 0;
 }
