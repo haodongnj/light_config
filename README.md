@@ -232,7 +232,7 @@ struct and a `validate_<Name>()` function that returns a `LoadResult`.
 
 ```bash
 python3 scripts/gen_config.py \
-  --input scripts/sample_config.csv \
+  --input examples/sample_config.csv \
    MyConfig \
   --output include/my_config.hpp
 ```
@@ -325,34 +325,6 @@ The generated `validate_<Name>()` function checks all fields that have
 `min`/`max` constraints and returns `ErrorCode::kValidationError` with a
 multi-line summary of every violated constraint.
 
-## Project layout
-
-```
-light_config/
-├── CMakeLists.txt
-├── scripts/
-│   ├── gen_config.py          # CSV → config header generator
-│   ├── sample_config.csv      # example CSV schema
-│   ├── valid_config.json      # generated: valid config from defaults
-│   ├── valid_config.yaml
-│   ├── invalid_config.json    # generated: out-of-range values
-│   └── invalid_config.yaml
-├── include/light_config/
-│   ├── light_config.hpp       # public header (auto-detect, all loaders)
-│   ├── load_result.hpp        # ErrorCode, LoadResult, Format, type traits
-│   ├── json_loader.hpp        # JSON loader + DOM-based optional audit
-│   └── yaml_loader.hpp        # YAML loader + post-load optional audit
-├── third_party/
-│   ├── yalantinglibs/         # vendored yalantinglibs 0.6.1
-│   └── versions.txt           # vendored dependency tracking
-├── examples/
-│   └── example.cpp            # JSON, YAML, auto-detect, error codes, range checks
-├── tests/
-│   └── test_basic.cpp         # 13 unit tests
-└── .vscode/
-    ├── launch.json            # lldb debug config for example_json
-    └── tasks.json             # pre-launch CMake build task
-```
 
 ## License
 

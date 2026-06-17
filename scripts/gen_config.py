@@ -13,14 +13,22 @@ group.  The member field name comes from 'field_name'.
 The root struct is auto-detected: the group that no other group references as
 a member type.
 
+Generated files (split header + source):
+    <output_dir>/<snake_name>.hpp   — struct definitions + validation declarations
+    <output_dir>/<snake_name>.cpp   — validation implementations
+    <output_dir>/valid_config.json  — (optional) sample valid config
+    <output_dir>/valid_config.yaml  — (optional) sample valid config
+
 Usage:
-    python3 scripts/gen_config.py --input schema.csv --output include/my_config.hpp
-    python3 scripts/gen_config.py ... --generate-samples  # also emit .json + .yaml samples
+    python3 scripts/gen_config.py --input examples/sample_config.csv
+    python3 scripts/gen_config.py --input examples/sample_config.csv \\
+        --output-dir examples/ --struct-name AppConfig --generate-samples
 """
 
 import argparse
 import csv
 import json
+import re
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -42,6 +50,13 @@ def map_type(csv_type: str) -> str:
         "vector<double>": "std::vector<double>",
     }
     return mapping.get(csv_type, csv_type)
+
+
+def _to_snake_case(camel: str) -> str:
+    """Convert CamelCase to snake_case, e.g. AppConfig -> app_config."""
+    s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', camel)
+    s = re.sub(r'([a-z\d])([A-Z])', r'\1_\2', s)
+    return s.lower()
 
 
 def _parse_default(val: str, csv_type: str) -> object:
@@ -106,10 +121,10 @@ def _field_value(row: dict, use_default: bool = True, violate: bool = False) -> 
 
 
 # ---------------------------------------------------------------------------
-# C++ code generation
+# C++ code generation — header
 # ---------------------------------------------------------------------------
 
-def _preamble(has_optional: bool) -> str:
+def _make_header_preamble(has_optional: bool) -> str:
     inc_opt = "#include <optional>" if has_optional else ""
     return f"""#pragma once
 
@@ -136,11 +151,6 @@ def _make_struct_body(struct_name: str,
                       nested_members: list[tuple[str, str]]) -> tuple[str, bool]:
     """Generate struct definition body.
 
-    Args:
-        struct_name: the C++ struct type name.
-        regular_rows: rows with built-in types (int, string, etc.).
-        nested_members: list of (member_name, nested_type_name).
-
     Returns (body_string, has_optional).
     """
     lines: list[str] = []
@@ -165,9 +175,6 @@ def _make_struct_body(struct_name: str,
 
     # Nested struct members
     for member_name, nested_type in nested_members:
-        desc_for_nested = ""
-        for row in regular_rows:  # we won't have desc for nested, skip
-            pass
         lines.append(f"    {nested_type} {member_name};")
 
     body = "\n".join(lines)
@@ -181,10 +188,32 @@ def _make_struct_body(struct_name: str,
 YLT_REFL({struct_name}, {refl_str});""", has_optional
 
 
-def _make_validate_func(struct_name: str,
+def _make_validate_decl(struct_name: str) -> str:
+    """Generate a forward declaration for validate_<StructName>()."""
+    return f"""/// Validate range constraints defined in the CSV schema.
+/// Returns light_config::ErrorCode::kOk on success,
+/// kValidationError with detail on failure.
+light_config::LoadResult validate_{struct_name}(const {struct_name}& cfg);"""
+
+
+# ---------------------------------------------------------------------------
+# C++ code generation — source
+# ---------------------------------------------------------------------------
+
+def _make_source_preamble(struct_name: str) -> str:
+    snake = _to_snake_case(struct_name)
+    return f"""/// Auto-generated validation implementations from CSV schema.
+/// DO NOT EDIT BY HAND — regenerate with scripts/gen_config.py.
+
+#include "{snake}.hpp"
+
+#include <sstream>"""
+
+
+def _make_validate_impl(struct_name: str,
                         regular_rows: list[dict],
                         nested_members: list[tuple[str, str]]) -> str:
-    """Generate validate_<StructName>() with range checks and recursion."""
+    """Generate validate_<StructName>() body with range checks and recursion."""
     checks: list[str] = []
     has_validation = False
 
@@ -205,13 +234,16 @@ def _make_validate_func(struct_name: str,
 
         if min_val and max_val:
             cond_parts.append(f"{field_expr} < {min_val} || {field_expr} > {max_val}")
-            msg_parts.append(f'" << {field_expr} << " out of range [{min_val}, {max_val}]')
+            msg_parts.append(
+                f"\" << {field_expr} << \" out of range [{min_val}, {max_val}]")
         elif min_val:
             cond_parts.append(f"{field_expr} < {min_val}")
-            msg_parts.append(f'" << {field_expr} << " below minimum {min_val}')
+            msg_parts.append(
+                f"\" << {field_expr} << \" below minimum {min_val}")
         elif max_val:
             cond_parts.append(f"{field_expr} > {max_val}")
-            msg_parts.append(f'" << {field_expr} << " above maximum {max_val}')
+            msg_parts.append(
+                f"\" << {field_expr} << \" above maximum {max_val}")
 
         cond_str = " || ".join(cond_parts)
         msg_str = "; ".join(msg_parts)
@@ -242,19 +274,14 @@ def _make_validate_func(struct_name: str,
         has_validation = True
 
     if not has_validation:
-        return f"""/// Validate range constraints from CSV schema.
-/// No range constraints defined; always succeeds.
-inline light_config::LoadResult validate_{struct_name}(
+        return f"""light_config::LoadResult validate_{struct_name}(
     const {struct_name}& /*cfg*/) {{
     return light_config::LoadResult::success();
 }}
 """
 
     body = "\n".join(checks)
-    return f"""/// Validate range constraints defined in the CSV schema.
-/// Returns light_config::ErrorCode::kOk on success,
-/// kValidationError with detail on failure.
-inline light_config::LoadResult validate_{struct_name}(
+    return f"""light_config::LoadResult validate_{struct_name}(
     const {struct_name}& cfg) {{
     std::vector<std::string> errors;
 {body}
@@ -279,7 +306,6 @@ inline light_config::LoadResult validate_{struct_name}(
 
 def _build_sample_dict(group_regular: dict[str, list[dict]],
                        group_nested: dict[str, list[tuple[str, str]]],
-                       all_groups: dict[str, list[dict]],
                        root: str,
                        use_default: bool, violate: bool) -> dict:
     """Recursively build a nested dict for JSON/YAML output."""
@@ -349,11 +375,12 @@ def _has_range_constraints(rows: list[dict]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Main entry point
+# Main generator
 # ---------------------------------------------------------------------------
 
-def generate(input_path: str, output_path: str,
-             generate_samples: bool = False, sample_dir: str = "") -> None:
+def generate(input_path: str, output_dir: str,
+             struct_name_override: str = "",
+             generate_samples: bool = False) -> None:
     inpath = Path(input_path)
     if not inpath.exists():
         print(f"Error: input file '{input_path}' not found.", file=sys.stderr)
@@ -419,8 +446,10 @@ def generate(input_path: str, output_path: str,
               file=sys.stderr)
     root = roots[0]
 
-    # Sort groups topologically: groups that are referenced by others come first.
-    # Simple approach: all non-root groups first (they are referenced), root last.
+    struct_name = struct_name_override if struct_name_override else root
+    snake = _to_snake_case(struct_name)
+
+    # Sort groups topologically: non-root first, root last.
     non_roots = [g for g in all_groups if g != root]
     ordered_groups = non_roots + [root]
 
@@ -432,67 +461,58 @@ def generate(input_path: str, output_path: str,
                 all_has_optional = True
                 break
 
-    preamble = _preamble(all_has_optional)
-    output_lines: list[str] = [preamble, ""]
+    outdir = Path(output_dir)
+    outdir.mkdir(parents=True, exist_ok=True)
 
-    # Generate struct definitions (non-root first, root last).
-    for gname in ordered_groups:
-        body, _ = _make_struct_body(gname, group_regular[gname], group_nested[gname])
-        output_lines.append(body)
-        output_lines.append("")
-
-    # Validation code.
-    output_lines.append("#include <sstream>")
-    output_lines.append("")
+    # ---- Generate header ----
+    hpp_path = outdir / f"{snake}.hpp"
+    hpp_lines: list[str] = [_make_header_preamble(all_has_optional), ""]
 
     for gname in ordered_groups:
-        validate_fn = _make_validate_func(gname, group_regular[gname], group_nested[gname])
-        output_lines.append(validate_fn)
-        output_lines.append("")
+        body, _ = _make_struct_body(gname, group_regular[gname],
+                                    group_nested[gname])
+        hpp_lines.append(body)
+        hpp_lines.append("")
 
-    # Write output.
-    outpath = Path(output_path)
-    outpath.parent.mkdir(parents=True, exist_ok=True)
-    with open(outpath, "w") as f:
-        f.write("\n".join(output_lines))
+    for gname in ordered_groups:
+        decl = _make_validate_decl(gname)
+        hpp_lines.append(decl)
+        hpp_lines.append("")
 
-    print(f"Generated {output_path} "
-          f"(root: {root}, "
-          f"{len(ordered_groups)} struct(s), "
-          f"{sum(len(v) for v in group_regular.values())} fields)")
+    with open(hpp_path, "w") as f:
+        f.write("\n".join(hpp_lines))
+    print(f"Generated {hpp_path}")
 
-    # Sample configs.
+    # ---- Generate source ----
+    cpp_path = outdir / f"{snake}.cpp"
+    cpp_lines: list[str] = [_make_source_preamble(struct_name), ""]
+
+    for gname in ordered_groups:
+        impl = _make_validate_impl(gname, group_regular[gname],
+                                   group_nested[gname])
+        cpp_lines.append(impl)
+        cpp_lines.append("")
+
+    with open(cpp_path, "w") as f:
+        f.write("\n".join(cpp_lines))
+    print(f"Generated {cpp_path}")
+
+    n_fields = sum(len(v) for v in group_regular.values())
+    print(f"  (root: {root}, {len(ordered_groups)} struct(s), {n_fields} fields)")
+
+    # ---- Sample configs ----
     if generate_samples:
-        sdir = sample_dir if sample_dir else outpath.parent
-        outdir = Path(sdir)
-        outdir.mkdir(parents=True, exist_ok=True)
-
         valid_data = _build_sample_dict(group_regular, group_nested,
-                                        all_groups, root,
-                                        use_default=True, violate=False)
-        invalid_data = _build_sample_dict(group_regular, group_nested,
-                                          all_groups, root,
-                                          use_default=False, violate=True)
+                                        root, use_default=True, violate=False)
 
         vj = outdir / "valid_config.json"
         vy = outdir / "valid_config.yaml"
-        ij = outdir / "invalid_config.json"
-        iy = outdir / "invalid_config.yaml"
 
         _write_json(valid_data, vj)
         _write_yaml(valid_data, vy)
         print(f"Generated {vj}")
         print(f"Generated {vy}")
 
-        has_any_range = any(_has_range_constraints(rows)
-                           for rows in group_regular.values())
-        if has_any_range:
-            _write_json(invalid_data, ij)
-            _write_yaml(invalid_data, iy)
-            print(f"Generated {ij} (out-of-range values)")
-            print(f"Generated {iy} (out-of-range values)")
-        else:
-            print("(no range constraints in CSV — skipping invalid configs)")
 
 
 def main() -> None:
@@ -501,17 +521,20 @@ def main() -> None:
     )
     parser.add_argument("--input", "-i", required=True,
                         help="Path to CSV schema file.")
-    parser.add_argument("--output", "-o", required=True,
-                        help="Path to output header file.")
+    parser.add_argument("--output-dir", "-d", default="examples/",
+                        help="Directory for generated header, source, and sample "
+                             "files (default: examples/).")
+    parser.add_argument("--struct-name", default="",
+                        help="Override root struct name for file naming "
+                             "(default: auto-detected from CSV root group).")
     parser.add_argument("--generate-samples", action="store_true",
-                        help="Emit valid.json, valid.yaml, invalid.json, invalid.yaml "
-                             "sample config files.")
-    parser.add_argument("--sample-dir", default="",
-                        help="Directory for sample configs (default: same as output).")
+                        help="Emit valid_config.json, valid_config.yaml, "
+
+                             "into the output directory.")
     args = parser.parse_args()
-    generate(args.input, args.output,
-             generate_samples=args.generate_samples,
-             sample_dir=args.sample_dir)
+    generate(args.input, args.output_dir,
+             struct_name_override=args.struct_name,
+             generate_samples=args.generate_samples)
 
 
 if __name__ == "__main__":

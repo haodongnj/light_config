@@ -5,12 +5,12 @@
 
 #include <light_config/light_config.hpp>
 
-// Generated header from scripts/sample_config.csv via:
-//   python3 scripts/gen_config.py --input scripts/sample_config.csv \
-//       --struct-name AppConfig --output examples/app_config.hpp
+// Generated from examples/sample_config.csv via:
+//   python3 scripts/gen_config.py --input examples/sample_config.csv \
+//       --output-dir examples/ --generate-samples
 //
-// Defines: AppConfig, Server, Connection, validate_AppConfig(),
-//          validate_ServerConfig(), validate_Connection()
+// Generates app_config.hpp and app_config.cpp in examples/
+//
 #include "app_config.hpp"
 
 int main() {
@@ -174,6 +174,45 @@ connection:
         auto r = validate_ServerConfig(srv);
         assert(!r.ok());
         std::cout << "[PASS] validate_ServerConfig() caught server errors.\n";
+    }
+
+    // ---- Full valid JSON file: validates library end-to-end ----
+    // Uses scripts/valid_config.json, which has every field populated.
+    // Relative path from the build directory; adjust if running elsewhere.
+    {
+        const std::string json_path = "examples/valid_config.json";
+
+        AppConfig cfg;
+        auto r = light_config::load(cfg, json_path, light_config::Format::Auto);
+        assert(r.ok());
+
+        // Top-level fields
+        assert(cfg.debug == false);
+        assert(cfg.log_file.has_value());
+        assert(cfg.log_file.value() == "");
+        assert(cfg.allowed_origins.has_value());
+        assert(cfg.allowed_origins.value().size() == 1);
+        assert(cfg.allowed_origins.value()[0] == "example");
+
+        // Nested server
+        assert(cfg.server.host == "0.0.0.0");
+        assert(cfg.server.port == 8080);
+        assert(cfg.server.backlog == 128);
+
+        // Nested connection
+        assert(cfg.connection.max_connections == 1000);
+        assert(cfg.connection.timeout_sec == 30.0);
+        assert(cfg.connection.cert_file.has_value());
+        assert(cfg.connection.cert_file.value() == "");
+
+        // No absent optionals reported (all fields provided)
+        assert(r.absent_optionals.empty());
+
+        // Validation should pass (all values within range)
+        auto val_r = validate_AppConfig(cfg);
+        assert(val_r.ok());
+
+        std::cout << "[PASS] Full valid JSON file loaded and validated.\n";
     }
 
     std::cout << "\nAll examples passed.\n";
