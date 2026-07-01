@@ -1,13 +1,13 @@
 #pragma once
 
+#include <ylt/reflection/user_reflect_macro.hpp>
+#include <ylt/struct_json/json_reader.h>
+
 #include <exception>
-#include <fstream>
 #include <system_error>
 
-#include <ylt/struct_json/json_reader.h>
-#include <ylt/reflection/user_reflect_macro.hpp>
-
 #include "light_config/load_result.hpp"
+#include <fstream>
 
 namespace light_config {
 namespace detail {
@@ -19,39 +19,36 @@ void audit_json_recursive(T& obj, const iguana::jobject& dom,
                           std::vector<std::string>& absent_optionals,
                           std::vector<std::string>& present_fields,
                           const std::string& prefix = "") {
-    ylt::reflection::for_each(obj,
-        [&](auto& member, std::string_view name, auto /*index*/) {
-            std::string key(name);
-            std::string full_name = prefix.empty()
-                ? std::string(name)
-                : prefix + "." + std::string(name);
-            auto it = dom.find(key);
+    ylt::reflection::for_each(obj, [&](auto& member, std::string_view name, auto /*index*/) {
+        std::string key(name);
+        std::string full_name =
+            prefix.empty() ? std::string(name) : prefix + "." + std::string(name);
+        auto it = dom.find(key);
 
-            using field_t = std::decay_t<decltype(member)>;
+        using field_t = std::decay_t<decltype(member)>;
 
-            if (it == dom.end()) {
-                if constexpr (is_optional_v<field_t>) {
-                    absent_optionals.push_back(full_name);
-                    member = std::nullopt;
-                }
-            } else {
-                present_fields.push_back(full_name);
+        if (it == dom.end()) {
+            if constexpr (is_optional_v<field_t>) {
+                absent_optionals.push_back(full_name);
+                member = std::nullopt;
+            }
+        } else {
+            present_fields.push_back(full_name);
 
-                // Recurse into nested struct members with YLT_REFL
-                if constexpr (ylt::reflection::is_ylt_refl_v<field_t>) {
-                    if (it->second.is_object()) {
-                        const auto& sub_dom = it->second.template get<
-                            iguana::basic_json_value<char>::object_type>();
-                        audit_json_recursive(member, sub_dom,
-                                            absent_optionals, present_fields,
-                                            full_name);
-                    }
+            // Recurse into nested struct members with YLT_REFL
+            if constexpr (ylt::reflection::is_ylt_refl_v<field_t>) {
+                if (it->second.is_object()) {
+                    const auto& sub_dom =
+                        it->second.template get<iguana::basic_json_value<char>::object_type>();
+                    audit_json_recursive(member, sub_dom, absent_optionals, present_fields,
+                                         full_name);
                 }
             }
-        });
+        }
+    });
 }
 
-} // namespace detail
+}  // namespace detail
 
 /// Load a JSON config file into a struct and report optional-field presence.
 ///
@@ -90,9 +87,7 @@ LoadResult load_from_json_file(T& config, const std::string& path) {
     try {
         iguana::jobject dom;
         iguana::parse(dom, content);
-        detail::audit_json_recursive(config, dom,
-                                     result.absent_optionals,
-                                     result.present_fields);
+        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
     } catch (const std::runtime_error& e) {
         return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
     }
@@ -116,9 +111,7 @@ LoadResult load_from_json_string(T& config, const std::string& json_str) {
     try {
         iguana::jobject dom;
         iguana::parse(dom, json_str);
-        detail::audit_json_recursive(config, dom,
-                                     result.absent_optionals,
-                                     result.present_fields);
+        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
     } catch (const std::runtime_error& e) {
         return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
     }

@@ -11,10 +11,10 @@
 ///   if (!r.ok) { /* handle r.error */ }
 ///   // r.absent_optionals lists std::optional fields missing from file.
 
+#include <string>
+
 #include "light_config/json_loader.hpp"
 #include "light_config/yaml_loader.hpp"
-
-#include <string>
 
 namespace light_config {
 
@@ -22,8 +22,7 @@ namespace light_config {
 ///
 /// `.yaml` / `.yml` → YAML; anything else → JSON.
 template <typename T>
-LoadResult load(T& config, const std::string& path,
-                Format format = Format::Auto) {
+LoadResult load(T& config, const std::string& path, Format format = Format::Auto) {
     if (format == Format::Yaml) {
         return load_from_yaml_file(config, path);
     }

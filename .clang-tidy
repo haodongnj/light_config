@@ -1,0 +1,73 @@
+# light_config clang-tidy configuration — C++17, focused on real bugs and
+# modernization without fighting the struct-reflection pattern.
+#
+# Checks are tuned for a library that:
+#   - Uses plain structs + YLT_REFL macro for serialization
+#   - Targets C++17 (no C++20 features assumed)
+#   - Has no heap or owning-raw-pointer patterns (header-only JSON/YAML loader)
+#   - Auto-generates some source files (excluded via CMake or .clang-tidy -exclude)
+#
+# Usage:
+#   clang-tidy -p build <file>                                         # single file
+#   run-clang-tidy -p build -exclude 'examples/(app|network).*' \     # whole project
+#                 'include/.*' 'tests/.*' 'examples/example.cpp'
+
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  cert-*,
+  -cert-err58-cpp,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-special-member-functions,
+  -cppcoreguidelines-pro-type-member-init,
+  -cppcoreguidelines-owning-memory,
+  google-*,
+  -google-readability-todo,
+  misc-*,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-unused-parameters,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-use-trailing-return-type,
+  performance-*,
+  -performance-avoid-endl,
+  portability-*,
+  readability-*,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-redundant-access-specifiers,
+
+# ---- Extra flags for generated files (app_config, network) ----
+# Pass these via CMake's CXX_CLANG_TIDY property or command-line:
+#   clang-tidy ... -exclude 'examples/app_config.*' -exclude 'examples/network.*'
+# The CMake integration below handles this automatically.
+
+# ---- C++17 standard ----
+CheckOptions:
+  - key: modernize-use-nullptr.NullMacros
+    value: NULL
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: 1
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: true
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: true
+  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value: true
+  - key: misc-include-cleaner.AnalyzeAngledIncludes
+    value: false
+  - key: readability-function-size.LineThreshold
+    value: 100
+
+# ---- Header filter (clang-tidy only runs on project headers) ----
+HeaderFilterRegex: '^(light_config|examples)/.*\.hpp$'

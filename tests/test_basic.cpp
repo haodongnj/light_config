@@ -1,11 +1,12 @@
+#include <light_config/light_config.hpp>
+
 #include <cassert>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
-#include <fstream>
 
-#include <light_config/light_config.hpp>
+#include <fstream>
 
 /// Config struct exercising various types.
 struct TestConfig {
@@ -19,8 +20,7 @@ struct TestConfig {
     std::vector<int> numbers;
     std::vector<std::string> tags;
 };
-YLT_REFL(TestConfig, name, value, flag, ratio,
-         opt_str, opt_int, opt_double, numbers, tags);
+YLT_REFL(TestConfig, name, value, flag, ratio, opt_str, opt_int, opt_double, numbers, tags);
 
 // A struct with all optional fields.
 struct AllOptionalConfig {
@@ -70,7 +70,7 @@ void test_json_all_fields_present() {
     assert(r.code == light_config::ErrorCode::kOk);
     assert(cfg.name == "test");
     assert(cfg.value == 42);
-    assert(cfg.flag == true);
+    assert(cfg.flag);
     assert(cfg.ratio == 2.5);
     assert(cfg.opt_str.has_value() && cfg.opt_str.value() == "hello");
     assert(cfg.opt_int.has_value() && cfg.opt_int.value() == 99);
@@ -193,7 +193,9 @@ void test_json_nested_some_absent() {
     // inner.port is absent from JSON
     auto has_port_absent = false;
     for (auto& name : r.absent_optionals) {
-        if (name == "inner.port") has_port_absent = true;
+        if (name == "inner.port") {
+            has_port_absent = true;
+        }
     }
     assert(has_port_absent);
     std::cout << "[PASS] JSON nested struct: inner.port absent.\n";
@@ -288,6 +290,7 @@ void test_auto_detect_no_extension() {
     std::cout << "[PASS] Auto-detect no extension -> JSON.\n";
 }
 
+// NOLINTNEXTLINE(bugprone-exception-escape)
 int main() {
     // JSON
     test_json_all_fields_present();

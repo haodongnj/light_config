@@ -11,41 +11,48 @@ namespace light_config {
 /// The numeric values are stable — integrations may depend on them.
 /// Always check code != kOk, never check specific integer values.
 enum class ErrorCode {
-    kOk = 0,                          ///< Success.
+    kOk = 0,  ///< Success.
 
     // ---- File I/O errors ----
-    kFileReadError = 1,               ///< Cannot access or stat the file.
-    kFileEmpty = 2,                   ///< File exists but is empty.
+    kFileReadError = 1,  ///< Cannot access or stat the file.
+    kFileEmpty = 2,      ///< File exists but is empty.
 
     // ---- Parse errors ----
-    kJsonParseError = 10,             ///< JSON syntax or structural error.
-    kJsonDeserializeError = 11,       ///< JSON parsed OK but struct population failed.
-    kYamlParseError = 20,             ///< YAML syntax or structural error.
+    kJsonParseError = 10,        ///< JSON syntax or structural error.
+    kJsonDeserializeError = 11,  ///< JSON parsed OK but struct population failed.
+    kYamlParseError = 20,        ///< YAML syntax or structural error.
 
     // ---- Validation errors ----
-    kValidationError = 30,            ///< Config values out of allowed range.
+    kValidationError = 30,  ///< Config values out of allowed range.
 };
 
 /// Human-readable description for an ErrorCode.
 /// Returns empty string for kOk.
 constexpr const char* error_code_message(ErrorCode code) noexcept {
     switch (code) {
-    case ErrorCode::kOk:                   return "";
-    case ErrorCode::kFileReadError:        return "file read error";
-    case ErrorCode::kFileEmpty:            return "file is empty";
-    case ErrorCode::kJsonParseError:       return "JSON parse error";
-    case ErrorCode::kJsonDeserializeError: return "JSON deserialize error";
-    case ErrorCode::kYamlParseError:       return "YAML parse error";
-    case ErrorCode::kValidationError:      return "validation error";
+        case ErrorCode::kOk:
+            return "";
+        case ErrorCode::kFileReadError:
+            return "file read error";
+        case ErrorCode::kFileEmpty:
+            return "file is empty";
+        case ErrorCode::kJsonParseError:
+            return "JSON parse error";
+        case ErrorCode::kJsonDeserializeError:
+            return "JSON deserialize error";
+        case ErrorCode::kYamlParseError:
+            return "YAML parse error";
+        case ErrorCode::kValidationError:
+            return "validation error";
     }
     return "unknown error";
 }
 
 /// Format of the config file.
 enum class Format {
-    Auto,   ///< Detect from file extension.
-    Json,   ///< JSON format (uses iguana::from_json).
-    Yaml    ///< YAML format (uses iguana::from_yaml).
+    Auto,  ///< Detect from file extension.
+    Json,  ///< JSON format (uses iguana::from_json).
+    Yaml   ///< YAML format (uses iguana::from_yaml).
 };
 
 /// Result of loading a config file.
@@ -59,7 +66,9 @@ struct LoadResult {
     std::string message;
 
     /// Shortcut: true when code == kOk.
-    bool ok() const noexcept { return code == ErrorCode::kOk; }
+    bool ok() const noexcept {
+        return code == ErrorCode::kOk;
+    }
 
     /// std::optional fields that were NOT present in the config file.
     ///

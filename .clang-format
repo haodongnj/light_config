@@ -1,0 +1,77 @@
+# light_config clang-format style — matches the existing hand-written code.
+#
+# Usage:
+#   clang-format -i <file>               # format one file in-place
+#   find . -name '*.hpp' -o -name '*.cpp' | xargs clang-format -i --dry-run --Werror  # CI check
+
+BasedOnStyle: Google
+
+# ---- Indentation ----
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AccessModifierOffset: -4
+IndentCaseLabels: true
+
+# ---- Braces ----
+BreakBeforeBraces: Attach
+NamespaceIndentation: None
+
+# ---- Line width & wrapping ----
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BreakBeforeBinaryOperators: NonAssignment
+AlignOperands: Align
+BinPackArguments: true
+BinPackParameters: true
+
+# ---- Pointers & references ----
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# ---- Includes ----
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Project headers first (quote includes without a directory prefix that match
+  # project conventions — light_config/, app_config.hpp, etc.)
+  - Regex: '^<(light_config|app|network)'
+    Priority: 1
+  # Other project-local headers (quoted includes "*.hpp")
+  - Regex: '^"([^/]+)\.(hpp|h)"'
+    Priority: 2
+  # Third-party / vendored headers (from third_party/)
+  - Regex: '^(<ylt/|<iguana/|<struct_)'
+    Priority: 3
+  # C++ standard library
+  - Regex: '^<(cstdint|cstdlib|cassert|cmath|cstring|ctime|climits|cstdio|algorithm|chrono|deque|exception|filesystem|forward_list|functional|initializer_list|iomanip|ios|iosfwd|iostream|istream|iterator|limits|list|locale|map|memory|mutex|new|numeric|optional|ostream|queue|random|regex|set|sstream|stack|stdexcept|streambuf|string|string_view|strstream|system_error|thread|tuple|type_traits|typeinfo|unordered_map|unordered_set|utility|valarray|vector)>'
+    Priority: 4
+  # Everything else (Boost, third-party, etc.)
+  - Regex: '.*'
+    Priority: 5
+
+SortIncludes: true
+
+# ---- Spacing ----
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# ---- Trailing ----
+AllowShortBlocksOnASingleLine: Empty
+EmptyLineBeforeAccessModifier: LogicalBlock
+MaxEmptyLinesToKeep: 1
+
+# ---- Comments ----
+AlignTrailingComments: true
+CommentPragmas: '^ IWYU pragma:'
+ReflowComments: false
+
+# ---- Macros ----
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false

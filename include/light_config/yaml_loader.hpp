@@ -1,14 +1,14 @@
 #pragma once
 
+#include <ylt/reflection/user_reflect_macro.hpp>
+#include <ylt/struct_yaml/yaml_reader.h>
+
 #include <cstdint>
 #include <exception>
-#include <fstream>
 #include <system_error>
 
-#include <ylt/struct_yaml/yaml_reader.h>
-#include <ylt/reflection/user_reflect_macro.hpp>
-
 #include "light_config/load_result.hpp"
+#include <fstream>
 
 namespace light_config {
 namespace detail {
@@ -17,37 +17,33 @@ namespace detail {
 /// Uses ylt::reflection::for_each and recurses into members that have
 /// YLT_REFL. prefix is the dot-joined parent path.
 template <typename T>
-void audit_yaml_recursive(const T& obj,
-                          std::vector<std::string>& absent_optionals,
+void audit_yaml_recursive(const T& obj, std::vector<std::string>& absent_optionals,
                           std::vector<std::string>& present_fields,
                           const std::string& prefix = "") {
-    ylt::reflection::for_each(obj,
-        [&](auto& member, std::string_view name, auto /*index*/) {
-            std::string full_name = prefix.empty()
-                ? std::string(name)
-                : prefix + "." + std::string(name);
+    ylt::reflection::for_each(obj, [&](auto& member, std::string_view name, auto /*index*/) {
+        std::string full_name =
+            prefix.empty() ? std::string(name) : prefix + "." + std::string(name);
 
-            using field_t = std::decay_t<decltype(member)>;
+        using field_t = std::decay_t<decltype(member)>;
 
-            if constexpr (is_optional_v<field_t>) {
-                if (member.has_value()) {
-                    present_fields.push_back(full_name);
-                } else {
-                    absent_optionals.push_back(full_name);
-                }
-            } else {
+        if constexpr (is_optional_v<field_t>) {
+            if (member.has_value()) {
                 present_fields.push_back(full_name);
+            } else {
+                absent_optionals.push_back(full_name);
             }
+        } else {
+            present_fields.push_back(full_name);
+        }
 
-            // Recurse into nested struct members with YLT_REFL
-            if constexpr (ylt::reflection::is_ylt_refl_v<field_t>) {
-                audit_yaml_recursive(member, absent_optionals, present_fields,
-                                    full_name);
-            }
-        });
+        // Recurse into nested struct members with YLT_REFL
+        if constexpr (ylt::reflection::is_ylt_refl_v<field_t>) {
+            audit_yaml_recursive(member, absent_optionals, present_fields, full_name);
+        }
+    });
 }
 
-} // namespace detail
+}  // namespace detail
 
 /// Load a YAML config file into a struct and report optional-field presence.
 ///
@@ -94,8 +90,7 @@ LoadResult load_from_yaml_file(T& config, const std::string& path) {
     auto result = LoadResult::success();
 
     // Recursive audit of optional fields.
-    detail::audit_yaml_recursive(config, result.absent_optionals,
-                                 result.present_fields);
+    detail::audit_yaml_recursive(config, result.absent_optionals, result.present_fields);
 
     return result;
 }
@@ -111,8 +106,7 @@ LoadResult load_from_yaml_string(T& config, const std::string& yaml_str) {
 
     auto result = LoadResult::success();
 
-    detail::audit_yaml_recursive(config, result.absent_optionals,
-                                 result.present_fields);
+    detail::audit_yaml_recursive(config, result.absent_optionals, result.present_fields);
 
     return result;
 }
