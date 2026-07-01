@@ -2,40 +2,87 @@
 
 /// Auto-generated config struct from CSV schema.
 /// DO NOT EDIT BY HAND — regenerate with scripts/gen_config.py.
+///
+/// --- Schema provenance ---
+///   schema_version : unknown
+///   source_csv     : sample_config.csv
+///   csv_md5        : 5c09bbe5e438d6913afdcc13ca4bcef4
+///   generated_at   : 2026-07-01T15:11:15.266212+00:00
+///   generator      : light_config
+/// -----------------------
 
 #include <light_config/light_config.hpp>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <optional>
+#include "network.hpp"
 
-struct ServerConfig {
-    // IP address to bind
-    std::string host = "0.0.0.0";
-    // Listening port
-    int port = 8080;
-    // TCP listen backlog
-    int backlog = 128;
-};
-YLT_REFL(ServerConfig, host, port, backlog);
-
-struct ConnectionConfig {
-    // Max concurrent connections
-    int max_connections = 1000;
-    // Connection timeout in seconds
-    double timeout_sec = 30.0;
-    // TLS certificate file path (optional)
-    std::optional<std::string> cert_file;
-};
-YLT_REFL(ConnectionConfig, max_connections, timeout_sec, cert_file);
+namespace app {
 
 struct AppConfig {
+    /*
+     * [sample_config.csv:3]
+     *   field_name  : debug
+     *   group       : AppConfig
+     *   type        : bool
+     *   default     : false
+     *   min         : 
+     *   max         : 
+     *   description : Enable debug logging
+     *   hpp_file    : app_config.hpp
+     */
     // Enable debug logging
     bool debug = false;
-    // Optional log file path
-    std::optional<std::string> log_file;
-    // Allowed CORS origins
+    /*
+     * [sample_config.csv:4]
+     *   field_name  : log_file
+     *   group       : AppConfig
+     *   type        : string
+     *   default     : /var/log/app.log
+     *   min         : 
+     *   max         : 
+     *   description : Log file path
+     *   hpp_file    : app_config.hpp
+     */
+    // Log file path
+    std::string log_file = "/var/log/app.log";
+    /*
+     * [sample_config.csv:5]
+     *   field_name  : allowed_origins
+     *   group       : AppConfig
+     *   type        : vector<string>
+     *   default     : 
+     *   min         : 
+     *   max         : 
+     *   description : Allowed CORS origins (optional)
+     *   hpp_file    : app_config.hpp
+     */
+    // Allowed CORS origins (optional)
     std::optional<std::vector<std::string>> allowed_origins;
+    /*
+     * [sample_config.csv:6]
+     *   field_name  : server
+     *   group       : AppConfig
+     *   type        : ServerConfig
+     *   default     : 
+     *   min         : 
+     *   max         : 
+     *   description : Backend server configuration
+     *   hpp_file    : app_config.hpp
+     */
     ServerConfig server;
+    /*
+     * [sample_config.csv:7]
+     *   field_name  : connection
+     *   group       : AppConfig
+     *   type        : ConnectionConfig
+     *   default     : 
+     *   min         : 
+     *   max         : 
+     *   description : Connection settings
+     *   hpp_file    : app_config.hpp
+     */
     ConnectionConfig connection;
 };
 YLT_REFL(AppConfig, debug, log_file, allowed_origins, server, connection);
@@ -43,14 +90,6 @@ YLT_REFL(AppConfig, debug, log_file, allowed_origins, server, connection);
 /// Validate range constraints defined in the CSV schema.
 /// Returns light_config::ErrorCode::kOk on success,
 /// kValidationError with detail on failure.
-light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg);
-
-/// Validate range constraints defined in the CSV schema.
-/// Returns light_config::ErrorCode::kOk on success,
-/// kValidationError with detail on failure.
-light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg);
-
-/// Validate range constraints defined in the CSV schema.
-/// Returns light_config::ErrorCode::kOk on success,
-/// kValidationError with detail on failure.
 light_config::LoadResult validate_AppConfig(const AppConfig& cfg);
+
+} // namespace app

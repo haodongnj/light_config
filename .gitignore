@@ -18,3 +18,10 @@ build/
 *.o
 *.out
 .cache
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Superpowers docs (local only)
+docs/superpowers/

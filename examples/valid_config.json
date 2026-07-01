@@ -1,6 +1,6 @@
 {
   "debug": false,
-  "log_file": "",
+  "log_file": "/var/log/app.log",
   "allowed_origins": [
     "example"
   ],
@@ -12,6 +12,10 @@
   "connection": {
     "max_connections": 1000,
     "timeout_sec": 30.0,
-    "cert_file": ""
+    "cert_file": "",
+    "retry_times": 3,
+    "allowed_ciphers": [
+      "example"
+    ]
   }
 }

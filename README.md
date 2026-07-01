@@ -35,13 +35,22 @@ Any type that iguana can deserialize from JSON/YAML is supported. Common types:
 
 | C++ type              | Example default       | Notes |
 |-----------------------|-----------------------|-------|
-| `int`                 | `8080`                | Numeric types support min/max range checks |
+| `int32_t` (`int`)     | `8080`                | Fixed-width via `<cstdint>`. `int` is a synonym for `int32`. Numeric types support min/max range checks |
+| `int8_t` … `int64_t`  | `0`                   | Explicit-width CSV types `int8`/`int16`/`int32`/`int64` |
+| `uint8_t` … `uint64_t`| `0`                   | Explicit-width CSV types `uint8`/`uint16`/`uint32`/`uint64` |
 | `double`              | `30.0`                | |
 | `bool`                | `false`               | |
 | `std::string`         | `"0.0.0.0"`           | Quoted in the config file |
-| `std::vector<int>`    | (no default)          | Array of values |
+| `std::vector<int32_t>`| (no default)          | CSV `vector<int>`; array of fixed-width ints |
 | `std::vector<std::string>` | (no default)     | Array of strings |
 | `std::optional<T>`    | —                     | Field that may be absent from the file |
+
+Integer config fields are emitted as fixed-width `<cstdint>` typedefs
+(`int32_t`, `uint16_t`, …) rather than the implementation-defined-width `int`,
+so a calibration parameter's range is portable across ECU toolchains
+(MISRA/AUTOSAR-friendly). `int` remains a valid CSV type and is a synonym for
+`int32` → `int32_t`. The generator rejects `default`/`min`/`max` literals that
+do not fit the declared width (e.g. `int8` with `default=300`).
 
 A field without a default (`std::optional<T>` or plain `T` with no `= value`)
 will be `std::nullopt` / zero-initialized when the key is missing from the
@@ -242,10 +251,10 @@ python3 scripts/gen_config.py \
 | Column | Description |
 |---|---|
 | `field_name` | C++ member name |
-| `type` | `int`, `double`, `bool`, `string`, `vector<string>`, `vector<int>`, `vector<double>` |
-| `default` | Literal default value; **leave empty** for `std::optional<T>` |
-| `min` | Inclusive lower bound (int/double only; empty = no lower bound) |
-| `max` | Inclusive upper bound (int/double only; empty = no upper bound) |
+| `type` | `int` (→ `int32_t`), `int8`/`int16`/`int32`/`int64`/`uint8`/`uint16`/`uint32`/`uint64`, `double`, `bool`, `string`, `vector<string>`, `vector<int>`, `vector<double>` |
+| `default` | Literal default value; **leave empty** for `std::optional<T>`. For integer width types the literal must fit the declared width or the generator errors out. |
+| `min` | Inclusive lower bound (integer / double types; empty = no lower bound) |
+| `max` | Inclusive upper bound (integer / double types; empty = no upper bound) |
 | `description` | Emitted as a `//` comment in the generated header |
 | `group` | The exact C++ struct type name (e.g. `ServerConfig`, `ConnectionConfig`). Every row must have a non-empty `group` value. |
 

@@ -13,6 +13,8 @@
 //
 #include "app_config.hpp"
 
+using namespace app;
+
 int main() {
     // ---- JSON example with compound config ----
     const std::string json_content = R"({
@@ -37,15 +39,12 @@ int main() {
         assert(cfg.server.port == 443);
         assert(cfg.connection.max_connections == 500);
 
-        // log_file was absent from the JSON -> reported absent.
-        assert(!cfg.log_file.has_value());
-        bool found_log = false;
-        for (auto& name : r.absent_optionals) {
-            if (name == "log_file") found_log = true;
-        }
-        assert(found_log);
+        // log_file was absent from the JSON -> default preserved.
+        // (log_file is a plain std::string with a default, not an optional,
+        //  so it is not reported in absent_optionals.)
+        assert(cfg.log_file == "/var/log/app.log");
 
-        std::cout << "[PASS] JSON: compound config loaded, log_file absent.\n";
+        std::cout << "[PASS] JSON: compound config loaded, log_file default preserved.\n";
     }
 
     // ---- JSON: nested absent detection (optional sub-field) ----
@@ -74,12 +73,9 @@ int main() {
             if (name == "connection.cert_file") found_cert = true;
         }
         assert(found_cert);
-        // log_file is also absent
-        bool found_log = false;
-        for (auto& name : r.absent_optionals) {
-            if (name == "log_file") found_log = true;
-        }
-        assert(found_log);
+        // log_file is a plain std::string (has a default), so absence from the
+        // JSON just preserves the default; it is not an absent optional.
+        assert(cfg.log_file == "/var/log/app.log");
         std::cout << "[PASS] JSON: connection.cert_file absent, dot-separated.\n";
     }
 
@@ -188,8 +184,7 @@ connection:
 
         // Top-level fields
         assert(cfg.debug == false);
-        assert(cfg.log_file.has_value());
-        assert(cfg.log_file.value() == "");
+        assert(cfg.log_file == "/var/log/app.log");
         assert(cfg.allowed_origins.has_value());
         assert(cfg.allowed_origins.value().size() == 1);
         assert(cfg.allowed_origins.value()[0] == "example");
