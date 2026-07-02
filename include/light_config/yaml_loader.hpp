@@ -1,7 +1,9 @@
 #pragma once
 
+#include <iguana/detail/string_stream.hpp>
 #include <ylt/reflection/user_reflect_macro.hpp>
 #include <ylt/struct_yaml/yaml_reader.h>
+#include <ylt/struct_yaml/yaml_writer.h>
 
 #include <cstdint>
 #include <exception>
@@ -127,8 +129,7 @@ LoadResult load_from_yaml_string(T& config, const std::string& yaml_str,
             auto val_start = yaml_str.find_first_not_of(" \t", pos + 8);
             if (val_start != std::string::npos) {
                 auto val_end = yaml_str.find_first_of("\r\n", val_start);
-                auto found_ver =
-                    yaml_str.substr(val_start, val_end - val_start);
+                auto found_ver = yaml_str.substr(val_start, val_end - val_start);
                 // Trim trailing whitespace.
                 auto trim_end = found_ver.find_last_not_of(" \t");
                 if (trim_end != std::string::npos) {
@@ -136,10 +137,9 @@ LoadResult load_from_yaml_string(T& config, const std::string& yaml_str,
                 }
                 if (found_ver != expected_schema_version) {
                     auto msg = std::string("expected schema version '")
-                        + std::string(expected_schema_version)
-                        + "' but file has '" + found_ver + "'";
-                    return LoadResult::failure(ErrorCode::kSchemaMismatch,
-                                               std::move(msg));
+                               + std::string(expected_schema_version) + "' but file has '"
+                               + found_ver + "'";
+                    return LoadResult::failure(ErrorCode::kSchemaMismatch, std::move(msg));
                 }
             }
         }
@@ -174,6 +174,47 @@ LoadResult load_from_yaml_file(T& config, const std::string& path,
     }
 
     return load_from_yaml_string(config, content, expected_schema_version);
+}
+
+/// Serialize a config struct to a YAML string.
+///
+/// Uses iguana::to_yaml with min_spaces=0 for top-level fields.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \param[in] config  The config struct to serialize.
+/// \return  The YAML string, or std::nullopt if serialization throws.
+template <typename T>
+std::optional<std::string> to_yaml(const T& config) {
+    try {
+        iguana::string_stream ss;
+        iguana::to_yaml(config, ss, 0);
+        return std::string(std::move(ss));
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
+
+/// Write a config struct to a YAML file.
+///
+/// Serializes the struct and writes it to the given path. The file is
+/// truncated if it already exists.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \param[in] config  The config struct to serialize.
+/// \param[in] path    Path to the output YAML file.
+/// \return  true on success, false on serialization or I/O failure.
+template <typename T>
+bool save_to_yaml_file(const T& config, const std::string& path) {
+    auto yaml_opt = to_yaml(config);
+    if (!yaml_opt.has_value()) {
+        return false;
+    }
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) {
+        return false;
+    }
+    file << yaml_opt.value();
+    return file.good();
 }
 
 }  // namespace light_config
