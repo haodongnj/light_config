@@ -669,8 +669,10 @@ def _make_schema_version_constant(struct_name: str, version: str) -> str:
 
     When the CSV has no schema_version metadata, the constant still exists
     but is set to the empty string so callers can always reference it.
+    The sentinel "unknown" (from provenance resolution when no version is
+    provided) is also normalised to "".
     """
-    if not version:
+    if not version or version == "unknown":
         version = ""
     return (
         f"/// Schema version declared in the CSV __metadata__ row.\n"
@@ -965,7 +967,7 @@ class CodeGenerator:
             )
             lines.append(body)
             lines.append("")
-        schema_ver = self.model.metadata.get("schema_version", "")
+        schema_ver = self.provenance.schema_version
         for gname in groups:
             struct_name = (
                 self._struct_name if gname == self.model.root else gname
@@ -1050,7 +1052,7 @@ class CodeGenerator:
             )
             lines.append(body)
             lines.append("")
-        schema_ver = self.model.metadata.get("schema_version", "")
+        schema_ver = self.provenance.schema_version
         for gname in self.model.ordered_groups:
             lines.append(_make_schema_version_constant(gname, schema_ver))
             lines.append("")
@@ -1098,7 +1100,7 @@ class CodeGenerator:
         )
         lines.append(body)
         lines.append("")
-        schema_ver = self.model.metadata.get("schema_version", "")
+        schema_ver = self.provenance.schema_version
         lines.append(_make_schema_version_constant(struct_name, schema_ver))
         lines.append("")
         lines.append(_make_validate_decl(struct_name))

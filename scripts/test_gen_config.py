@@ -215,6 +215,33 @@ def test_back_compat_no_namespace_global_scope() -> None:
           "struct at global scope when namespace absent")
 
 
+def test_schema_version_constant_emitted() -> None:
+    """__metadata__ schema_version → constexpr constant in generated code."""
+    csv_text = (
+        "__metadata__,schema_version=3.2.1,generator=light_config\n"
+        "field_name,group,type,default,min,max,description\n"
+        "v,MyConfig,int,42,0,100,Value\n"
+    )
+    _, hpp = _generate(csv_text)
+    check(
+        'constexpr std::string_view kMyConfigSchemaVersion{"3.2.1"};' in hpp,
+        "schema_version 3.2.1 emitted as constexpr constant",
+    )
+
+
+def test_schema_version_missing_metadata_emits_empty() -> None:
+    """No __metadata__ schema_version → empty constant emitted."""
+    csv_text = (
+        "field_name,group,type,default,min,max,description\n"
+        "v,MyConfig,int,42,0,100,Value\n"
+    )
+    _, hpp = _generate(csv_text)
+    check(
+        'constexpr std::string_view kMyConfigSchemaVersion{""};' in hpp,
+        "missing schema_version emits empty string constant",
+    )
+
+
 def main() -> int:
     test_type_mapping()
     test_unknown_type_rejected()
@@ -225,6 +252,8 @@ def main() -> int:
     test_namespace_nested_from_metadata()
     test_namespace_cli_override()
     test_back_compat_no_namespace_global_scope()
+    test_schema_version_constant_emitted()
+    test_schema_version_missing_metadata_emits_empty()
     if _FAIL:
         print(f"\n{_FAIL} self-test(s) failed.")
         return 1
