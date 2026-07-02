@@ -51,6 +51,16 @@ struct OuterCfg {
 };
 YLT_REFL(OuterCfg, app_name, version, inner);
 
+// ---- Struct for schema version testing ----
+
+struct VersionedConfig {
+    std::string name;
+    int value = 0;
+};
+YLT_REFL(VersionedConfig, name, value);
+// Simulates what gen_config.py emits:
+constexpr std::string_view kVersionedConfigSchemaVersion{"2.0.0"};
+
 // ---- JSON Tests ----
 
 void test_json_all_fields_present() {
@@ -290,6 +300,111 @@ void test_auto_detect_no_extension() {
     std::cout << "[PASS] Auto-detect no extension -> JSON.\n";
 }
 
+// ---- Schema Version Tests ----
+
+void test_schema_version_json_match() {
+    VersionedConfig cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "$schema": "2.0.0",
+        "name": "test",
+        "value": 42
+    })", kVersionedConfigSchemaVersion);
+    assert(r.ok());
+    assert(r.code == light_config::ErrorCode::kOk);
+    assert(cfg.name == "test");
+    assert(cfg.value == 42);
+    std::cout << "[PASS] Schema version: JSON match succeeds.\n";
+}
+
+void test_schema_version_json_mismatch() {
+    VersionedConfig cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "$schema": "1.0.0",
+        "name": "test",
+        "value": 42
+    })", kVersionedConfigSchemaVersion);
+    assert(!r.ok());
+    assert(r.code == light_config::ErrorCode::kSchemaMismatch);
+    assert(!r.message.empty());
+    // Message should mention both versions.
+    assert(r.message.find("2.0.0") != std::string::npos);
+    assert(r.message.find("1.0.0") != std::string::npos);
+    std::cout << "[PASS] Schema version: JSON mismatch rejected: " << r.message << "\n";
+}
+
+void test_schema_version_json_missing_key() {
+    VersionedConfig cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "name": "no_schema",
+        "value": 99
+    })", kVersionedConfigSchemaVersion);
+    assert(r.ok());
+    assert(cfg.name == "no_schema");
+    assert(cfg.value == 99);
+    std::cout << "[PASS] Schema version: missing $schema key proceeds (permissive).\n";
+}
+
+void test_schema_version_empty_expected_skips_check() {
+    VersionedConfig cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "$schema": "anything",
+        "name": "test",
+        "value": 1
+    })");  // default: expected_schema_version = ""
+    assert(r.ok());
+    std::cout << "[PASS] Schema version: empty expected skips check.\n";
+}
+
+void test_schema_version_non_string_value_ignored() {
+    VersionedConfig cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "$schema": 42,
+        "name": "test",
+        "value": 1
+    })", kVersionedConfigSchemaVersion);
+    // $schema is a number, not a string → is_string() check skips it.
+    assert(r.ok());
+    std::cout << "[PASS] Schema version: non-string $schema ignored.\n";
+}
+
+void test_schema_version_yaml_match() {
+    VersionedConfig cfg;
+    auto r = light_config::load_from_yaml_string(cfg, R"(
+$schema: 2.0.0
+name: yaml_test
+value: 7
+)", kVersionedConfigSchemaVersion);
+    assert(r.ok());
+    assert(cfg.name == "yaml_test");
+    assert(cfg.value == 7);
+    std::cout << "[PASS] Schema version: YAML match succeeds.\n";
+}
+
+void test_schema_version_yaml_mismatch() {
+    VersionedConfig cfg;
+    auto r = light_config::load_from_yaml_string(cfg, R"(
+$schema: 9.9.9
+name: yaml_test
+value: 7
+)", kVersionedConfigSchemaVersion);
+    assert(!r.ok());
+    assert(r.code == light_config::ErrorCode::kSchemaMismatch);
+    std::cout << "[PASS] Schema version: YAML mismatch rejected.\n";
+}
+
+void test_schema_version_load_versioned_json() {
+    const std::string path = "/tmp/light_config_test_schema.json";
+    {
+        std::ofstream f(path);
+        f << R"({"$schema": "2.0.0", "name": "file_test", "value": 5})";
+    }
+    VersionedConfig cfg;
+    auto r = light_config::load_versioned(cfg, path, kVersionedConfigSchemaVersion);
+    assert(r.ok());
+    assert(cfg.value == 5);
+    std::cout << "[PASS] Schema version: load_versioned JSON match.\n";
+}
+
 // NOLINTNEXTLINE(bugprone-exception-escape)
 int main() {
     // JSON
@@ -315,6 +430,16 @@ int main() {
     test_auto_detect_yml();
     test_auto_detect_no_extension();
 
-    std::cout << "\nAll " << 15 << " tests passed.\n";
+    // Schema version
+    test_schema_version_json_match();
+    test_schema_version_json_mismatch();
+    test_schema_version_json_missing_key();
+    test_schema_version_empty_expected_skips_check();
+    test_schema_version_non_string_value_ignored();
+    test_schema_version_yaml_match();
+    test_schema_version_yaml_mismatch();
+    test_schema_version_load_versioned_json();
+
+    std::cout << "\nAll " << 23 << " tests passed.\n";
     return 0;
 }
