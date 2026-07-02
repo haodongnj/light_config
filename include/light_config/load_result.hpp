@@ -10,22 +10,43 @@ namespace light_config {
 ///
 /// The numeric values are stable — integrations may depend on them.
 /// Always check code != kOk, never check specific integer values.
+///
+/// Range allocation policy (documented, enforced by static_assert below):
+///   0    — Success
+///   1–9  — File I/O errors
+///   10–19 — JSON errors
+///   20–29 — YAML errors
+///   30–39 — Validation errors
+///   40–49 — Schema / compatibility errors
 enum class ErrorCode {
     kOk = 0,  ///< Success.
 
-    // ---- File I/O errors ----
+    // ---- File I/O errors (range 1–9) ----
     kFileReadError = 1,  ///< Cannot access or stat the file.
     kFileEmpty = 2,      ///< File exists but is empty.
 
     // ---- Parse errors ----
+    // JSON errors (range 10–19)
     kJsonParseError = 10,        ///< JSON syntax or structural error.
     kJsonDeserializeError = 11,  ///< JSON parsed OK but struct population failed.
+    // YAML errors (range 20–29)
     kYamlParseError = 20,        ///< YAML syntax or structural error.
 
-    // ---- Validation errors ----
+    // ---- Validation errors (range 30–39) ----
     kValidationError = 30,   ///< Config values out of allowed range.
     kSchemaMismatch = 31,    ///< Config file schema version does not match expected.
 };
+
+// Verify range boundaries — catches accidental drift when new error codes are
+// added beyond the allocated range for that category.
+static_assert(static_cast<int>(ErrorCode::kFileEmpty) < 10,
+              "ErrorCode range violation: File I/O errors must stay in [1, 9]");
+static_assert(static_cast<int>(ErrorCode::kJsonDeserializeError) < 20,
+              "ErrorCode range violation: JSON errors must stay in [10, 19]");
+static_assert(static_cast<int>(ErrorCode::kYamlParseError) < 30,
+              "ErrorCode range violation: YAML errors must stay in [20, 29]");
+static_assert(static_cast<int>(ErrorCode::kSchemaMismatch) < 40,
+              "ErrorCode range violation: Validation errors must stay in [30, 39]");
 
 /// Human-readable description for an ErrorCode.
 /// Returns empty string for kOk.
