@@ -111,4 +111,69 @@ LoadResult load_from_yaml_string(T& config, const std::string& yaml_str) {
     return result;
 }
 
+/// Load a YAML string with optional schema version check.
+///
+/// YAML limitation: iguana 0.6.1 has no YAML DOM, so the version check is a
+/// simple substring search for `$schema:` in the raw content.  It handles the
+/// common case (unquoted scalar on its own line) but not quoted strings or
+/// flow-style mappings.  For strict checking, use the JSON format.
+template <typename T>
+LoadResult load_from_yaml_string(T& config, const std::string& yaml_str,
+                                 std::string_view expected_schema_version) {
+    if (!expected_schema_version.empty()) {
+        // Best-effort check: look for `$schema: <value>` on a line.
+        auto pos = yaml_str.find("$schema:");
+        if (pos != std::string::npos) {
+            auto val_start = yaml_str.find_first_not_of(" \t", pos + 8);
+            if (val_start != std::string::npos) {
+                auto val_end = yaml_str.find_first_of("\r\n", val_start);
+                auto found_ver =
+                    yaml_str.substr(val_start, val_end - val_start);
+                // Trim trailing whitespace.
+                auto trim_end = found_ver.find_last_not_of(" \t");
+                if (trim_end != std::string::npos) {
+                    found_ver = found_ver.substr(0, trim_end + 1);
+                }
+                if (found_ver != expected_schema_version) {
+                    auto msg = std::string("expected schema version '")
+                        + std::string(expected_schema_version)
+                        + "' but file has '" + found_ver + "'";
+                    return LoadResult::failure(ErrorCode::kSchemaMismatch,
+                                               std::move(msg));
+                }
+            }
+        }
+        // $schema absent → no error (permissive)
+    }
+
+    // Delegate to the existing (non-checking) implementation.
+    return load_from_yaml_string(config, yaml_str);
+}
+
+/// Load a YAML file with optional schema version check.
+template <typename T>
+LoadResult load_from_yaml_file(T& config, const std::string& path,
+                               std::string_view expected_schema_version) {
+    // Read file content.
+    std::string content;
+    {
+        std::error_code ec;
+        auto size = std::filesystem::file_size(path, ec);
+        if (ec) {
+            return LoadResult::failure(ErrorCode::kFileReadError, ec.message());
+        }
+        if (size == 0) {
+            return LoadResult::failure(ErrorCode::kFileEmpty, path);
+        }
+        content.resize(size);
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            return LoadResult::failure(ErrorCode::kFileReadError, path);
+        }
+        file.read(content.data(), size);
+    }
+
+    return load_from_yaml_string(config, content, expected_schema_version);
+}
+
 }  // namespace light_config
