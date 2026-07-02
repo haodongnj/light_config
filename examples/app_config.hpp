@@ -4,10 +4,10 @@
 /// DO NOT EDIT BY HAND — regenerate with scripts/gen_config.py.
 ///
 /// --- Schema provenance ---
-///   schema_version : unknown
+///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : 5c09bbe5e438d6913afdcc13ca4bcef4
-///   generated_at   : 2026-07-01T15:11:15.266212+00:00
+///   csv_md5        : af1fdd713b91743e3609d273eb73fa3b
+///   generated_at   : 2026-07-02T14:49:26.869960+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -86,6 +86,9 @@ struct AppConfig {
     ConnectionConfig connection;
 };
 YLT_REFL(AppConfig, debug, log_file, allowed_origins, server, connection);
+
+/// Schema version declared in the CSV __metadata__ row.
+constexpr std::string_view kAppConfigSchemaVersion{"1.0.0"};
 
 /// Validate range constraints defined in the CSV schema.
 /// Returns light_config::ErrorCode::kOk on success,

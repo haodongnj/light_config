@@ -4,10 +4,10 @@
 /// DO NOT EDIT BY HAND — regenerate with scripts/gen_config.py.
 ///
 /// --- Schema provenance ---
-///   schema_version : unknown
+///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : 5c09bbe5e438d6913afdcc13ca4bcef4
-///   generated_at   : 2026-07-01T15:11:15.266212+00:00
+///   csv_md5        : af1fdd713b91743e3609d273eb73fa3b
+///   generated_at   : 2026-07-02T14:49:26.869960+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -130,6 +130,12 @@ struct ConnectionConfig {
     std::optional<std::vector<std::string>> allowed_ciphers;
 };
 YLT_REFL(ConnectionConfig, max_connections, timeout_sec, cert_file, retry_times, allowed_ciphers);
+
+/// Schema version declared in the CSV __metadata__ row.
+constexpr std::string_view kServerConfigSchemaVersion{"1.0.0"};
+
+/// Schema version declared in the CSV __metadata__ row.
+constexpr std::string_view kConnectionConfigSchemaVersion{"1.0.0"};
 
 /// Validate range constraints defined in the CSV schema.
 /// Returns light_config::ErrorCode::kOk on success,

@@ -664,6 +664,20 @@ def _make_validate_decl(struct_name: str) -> str:
 light_config::LoadResult validate_{struct_name}(const {struct_name}& cfg);"""
 
 
+def _make_schema_version_constant(struct_name: str, version: str) -> str:
+    """Emit a constexpr schema version constant for the given struct.
+
+    When the CSV has no schema_version metadata, the constant still exists
+    but is set to the empty string so callers can always reference it.
+    """
+    if not version:
+        version = ""
+    return (
+        f"/// Schema version declared in the CSV __metadata__ row.\n"
+        f'constexpr std::string_view k{struct_name}SchemaVersion{{"{version}"}};'
+    )
+
+
 # ---------------------------------------------------------------------------
 # C++ code generation — source strings
 # ---------------------------------------------------------------------------
@@ -951,6 +965,13 @@ class CodeGenerator:
             )
             lines.append(body)
             lines.append("")
+        schema_ver = self.model.metadata.get("schema_version", "")
+        for gname in groups:
+            struct_name = (
+                self._struct_name if gname == self.model.root else gname
+            )
+            lines.append(_make_schema_version_constant(struct_name, schema_ver))
+            lines.append("")
         for gname in groups:
             struct_name = (
                 self._struct_name if gname == self.model.root else gname
@@ -1029,6 +1050,10 @@ class CodeGenerator:
             )
             lines.append(body)
             lines.append("")
+        schema_ver = self.model.metadata.get("schema_version", "")
+        for gname in self.model.ordered_groups:
+            lines.append(_make_schema_version_constant(gname, schema_ver))
+            lines.append("")
         for gname in self.model.ordered_groups:
             lines.append(_make_validate_decl(gname))
             lines.append("")
@@ -1072,6 +1097,9 @@ class CodeGenerator:
             self.model.group_nested[gname],
         )
         lines.append(body)
+        lines.append("")
+        schema_ver = self.model.metadata.get("schema_version", "")
+        lines.append(_make_schema_version_constant(struct_name, schema_ver))
         lines.append("")
         lines.append(_make_validate_decl(struct_name))
         lines.append("")

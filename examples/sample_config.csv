@@ -1,4 +1,4 @@
-__metadata__,namespace=app,generator=light_config
+__metadata__,namespace=app,schema_version=1.0.0,generator=light_config
 field_name,group,type,default,min,max,description,hpp_file
 debug,AppConfig,bool,false,,,Enable debug logging,app_config.hpp
 log_file,AppConfig,string,/var/log/app.log,,,Log file path,app_config.hpp
