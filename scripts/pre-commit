@@ -32,6 +32,10 @@ while IFS= read -r file; do
     git show ":$file" > "$tmp"
 
     if "$CLANG_FORMAT" -i --style=file "$tmp" 2>/dev/null; then
+        # Write the formatted content back to the working tree as well,
+        # so the file on disk matches what's in the index after commit.
+        cp "$tmp" "$file"
+
         # Re-hash the formatted content into the index.
         git hash-object -w --path "$file" "$tmp" > /dev/null
         hash="$(git hash-object "$tmp")"
