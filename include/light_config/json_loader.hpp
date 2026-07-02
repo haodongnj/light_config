@@ -56,12 +56,20 @@ void audit_json_recursive(T& obj, const iguana::jobject& dom,
 /// once to populate the struct. Nested structs (with YLT_REFL) are
 /// recursively audited, with dot-separated field paths in the result.
 ///
+/// When \p expected_schema_version is non-empty, the loader checks for a
+/// `"$schema"` key at the top level of the JSON object.  If present and its
+/// string value does not match the expected version, the result is
+/// kSchemaMismatch.  If `"$schema"` is absent, loading proceeds (the check
+/// is advisory — callers that require the key should verify separately).
+///
 /// \tparam T  A struct annotated with YLT_REFL.
 /// \param[out] config  Populated config struct.
 /// \param[in]  path    Path to the JSON file.
+/// \param[in]  expected_schema_version  If non-empty, check `$schema` key.
 /// \return     LoadResult with code==kOk and field audit on success.
 template <typename T>
-LoadResult load_from_json_file(T& config, const std::string& path) {
+LoadResult load_from_json_file(T& config, const std::string& path,
+                               std::string_view expected_schema_version = "") {
     // Read file content.
     std::string content;
     {
@@ -87,7 +95,26 @@ LoadResult load_from_json_file(T& config, const std::string& path) {
     try {
         iguana::jobject dom;
         iguana::parse(dom, content);
-        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
+
+        // ---- Schema version check (uses the same DOM, no extra parse) ----
+        if (!expected_schema_version.empty()) {
+            auto schema_it = dom.find("$schema");
+            if (schema_it != dom.end() && schema_it->second.is_string()) {
+                auto file_ver = schema_it->second.template get<
+                    iguana::basic_json_value<char>::string_type>();
+                if (file_ver != expected_schema_version) {
+                    auto msg = std::string("expected schema version '")
+                        + std::string(expected_schema_version)
+                        + "' but file has '" + file_ver + "'";
+                    return LoadResult::failure(ErrorCode::kSchemaMismatch,
+                                               std::move(msg));
+                }
+            }
+            // $schema absent or non-string → no error (permissive by default)
+        }
+
+        detail::audit_json_recursive(config, dom, result.absent_optionals,
+                                     result.present_fields);
     } catch (const std::runtime_error& e) {
         return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
     }
@@ -103,15 +130,41 @@ LoadResult load_from_json_file(T& config, const std::string& path) {
 }
 
 /// Load a JSON string into a struct with optional-field audit.
+///
+/// When \p expected_schema_version is non-empty, the loader checks for a
+/// `"$schema"` key at the top level of the JSON object.  If present and its
+/// string value does not match the expected version, the result is
+/// kSchemaMismatch.  If `"$schema"` is absent, loading proceeds (the check
+/// is advisory — callers that require the key should verify separately).
 template <typename T>
-LoadResult load_from_json_string(T& config, const std::string& json_str) {
+LoadResult load_from_json_string(T& config, const std::string& json_str,
+                                 std::string_view expected_schema_version = "") {
     auto result = LoadResult::success();
 
     // ---- Optional-field audit via recursive DOM walk ----
     try {
         iguana::jobject dom;
         iguana::parse(dom, json_str);
-        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
+
+        // ---- Schema version check (uses the same DOM, no extra parse) ----
+        if (!expected_schema_version.empty()) {
+            auto schema_it = dom.find("$schema");
+            if (schema_it != dom.end() && schema_it->second.is_string()) {
+                auto file_ver = schema_it->second.template get<
+                    iguana::basic_json_value<char>::string_type>();
+                if (file_ver != expected_schema_version) {
+                    auto msg = std::string("expected schema version '")
+                        + std::string(expected_schema_version)
+                        + "' but file has '" + file_ver + "'";
+                    return LoadResult::failure(ErrorCode::kSchemaMismatch,
+                                               std::move(msg));
+                }
+            }
+            // $schema absent or non-string → no error (permissive by default)
+        }
+
+        detail::audit_json_recursive(config, dom, result.absent_optionals,
+                                     result.present_fields);
     } catch (const std::runtime_error& e) {
         return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
     }

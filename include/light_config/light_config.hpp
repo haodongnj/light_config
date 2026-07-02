@@ -42,4 +42,33 @@ LoadResult load(T& config, const std::string& path, Format format = Format::Auto
     return load_from_json_file(config, path);
 }
 
+/// Load with schema version enforcement.
+///
+/// When \p expected_schema_version is non-empty, the loader checks the
+/// `"$schema"` key in JSON configs (or post-load for YAML) and returns
+/// kSchemaMismatch on mismatch.  The permissive default (empty string)
+/// preserves backward compatibility — existing callers that don't use
+/// schema versioning are unaffected.
+template <typename T>
+LoadResult load_versioned(T& config, const std::string& path,
+                          std::string_view expected_schema_version,
+                          Format format = Format::Auto) {
+    if (format == Format::Yaml) {
+        return load_from_yaml_file(config, path, expected_schema_version);
+    }
+    if (format == Format::Json) {
+        return load_from_json_file(config, path, expected_schema_version);
+    }
+
+    // Format::Auto
+    auto dot = path.rfind('.');
+    if (dot != std::string::npos) {
+        auto ext = path.substr(dot);
+        if (ext == ".yaml" || ext == ".yml") {
+            return load_from_yaml_file(config, path, expected_schema_version);
+        }
+    }
+    return load_from_json_file(config, path, expected_schema_version);
+}
+
 }  // namespace light_config
