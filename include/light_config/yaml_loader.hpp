@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iguana/detail/string_stream.hpp>
 #include <ylt/reflection/user_reflect_macro.hpp>
 #include <ylt/struct_yaml/yaml_reader.h>
 #include <ylt/struct_yaml/yaml_writer.h>
@@ -186,9 +185,9 @@ LoadResult load_from_yaml_file(T& config, const std::string& path,
 template <typename T>
 std::optional<std::string> to_yaml(const T& config) {
     try {
-        iguana::string_stream ss;
+        std::string ss;
         iguana::to_yaml(config, ss, 0);
-        return std::string(std::move(ss));
+        return ss;
     } catch (const std::exception&) {
         return std::nullopt;
     }
