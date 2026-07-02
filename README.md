@@ -28,6 +28,10 @@ never write a line of hand-rolled JSON/YAML parsing.
 - **Zero external dependencies** — only standard library + vendored headers.
 - **Debug-friendly** — built-in VS Code `launch.json` and `tasks.json` for
   lldb-based debugging.
+- **Auto-formatted code** — `scripts/pre-commit` git hook formats staged
+  C++ files on every commit; Claude Code's `PostToolUse` hook does the same
+  after every edit. `cmake --build build --target check-format` enforces
+  compliance in CI.
 
 ## Supported config field types
 
@@ -97,6 +101,27 @@ cmake --build build --target test_basic      # build tests
 
 CMake requires 3.16+. C++17 toolchain required (Apple Clang 15+, GCC 9+,
 MSVC 2019 16.8+).
+
+See [docs/setup-ubuntu-22.04.md](docs/setup-ubuntu-22.04.md) for a detailed
+Ubuntu 22.04 environment setup guide including formatting, static analysis,
+and troubleshooting.
+
+## Formatting
+
+```bash
+# Format all hand-written sources
+cmake --build build --target format
+
+# CI-style dry-run check
+cmake --build build --target check-format
+
+# Install the pre-commit hook (auto-format on git commit)
+ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+```
+
+The project follows a [.clang-format](.clang-format) style (Google-based, 4-space
+indent, 100-column limit).  The [pre-commit hook](scripts/pre-commit) and
+`check-format` CMake target both read this file.
 
 ## API reference
 

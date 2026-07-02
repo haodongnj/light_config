@@ -1,0 +1,54 @@
+#!/bin/bash
+# pre-commit hook — format staged C++ sources with clang-format.
+#
+# Only formats the staged version of each file and re-adds the result,
+# so unstaged changes are never touched.
+#
+# Requires clang-format on PATH. If clang-format is missing, the hook
+# prints a warning and allows the commit (soft enforcement).
+
+set -euo pipefail
+
+CLANG_FORMAT="$(command -v clang-format || true)"
+if [ -z "$CLANG_FORMAT" ]; then
+    echo "WARNING: clang-format not found — skipping automatic formatting." >&2
+    echo "  Install: sudo apt install clang-format        (Ubuntu/Debian)" >&2
+    echo "           brew install clang-format             (macOS)" >&2
+    exit 0
+fi
+
+FORMATTED_ANY=0
+
+# Iterate over staged files that match C/C++ extensions.
+# Use a temp file to avoid a subshell that swallows FORMATTED_ANY.
+while IFS= read -r file; do
+    # Only process if the file still exists (not deleted).
+    if [ ! -f "$file" ]; then
+        continue
+    fi
+
+    # Save the staged blob to a temp file, format it, then update the index.
+    tmp="$(mktemp)"
+    git show ":$file" > "$tmp"
+
+    if "$CLANG_FORMAT" -i --style=file "$tmp" 2>/dev/null; then
+        # Re-hash the formatted content into the index.
+        git hash-object -w --path "$file" "$tmp" > /dev/null
+        hash="$(git hash-object "$tmp")"
+        mode="$(git ls-files -s "$file" | awk '{print $1}')"
+        git update-index --cacheinfo "${mode:-100644}" "$hash" "$file"
+        echo "  clang-format: $file"
+        FORMATTED_ANY=1
+    fi
+
+    rm -f "$tmp"
+done < <(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(hpp|cpp|h|c|cc|cxx)$' || true)
+
+if [ "$FORMATTED_ANY" -eq 1 ]; then
+    echo ""
+    echo "NOTE: Staged files were reformatted with clang-format."
+    echo "      Review the changes with: git diff --cached"
+    echo "      If needed, re-add unstaged work:   git add"
+fi
+
+exit 0
