@@ -23,7 +23,8 @@ enum class ErrorCode {
     kYamlParseError = 20,        ///< YAML syntax or structural error.
 
     // ---- Validation errors ----
-    kValidationError = 30,  ///< Config values out of allowed range.
+    kValidationError = 30,   ///< Config values out of allowed range.
+    kSchemaMismatch = 31,    ///< Config file schema version does not match expected.
 };
 
 /// Human-readable description for an ErrorCode.
@@ -44,6 +45,8 @@ constexpr const char* error_code_message(ErrorCode code) noexcept {
             return "YAML parse error";
         case ErrorCode::kValidationError:
             return "validation error";
+        case ErrorCode::kSchemaMismatch:
+            return "schema version mismatch";
     }
     return "unknown error";
 }
