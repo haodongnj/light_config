@@ -2,363 +2,181 @@
 
 A header-only C++17 library for loading configuration files directly into
 structs. Built on [yalantinglibs](https://github.com/alibaba/yalantinglibs)
-(vendored at 0.6.1), it uses compile-time reflection (`YLT_REFL`) so you
+(vendored at 0.6.0), it uses compile-time reflection (`YLT_REFL`) so you
 never write a line of hand-rolled JSON/YAML parsing.
 
 ## Features
 
 - **JSON and YAML support** — same struct, either format.
 - **Automatic format detection** — `.json`, `.yaml`, `.yml`; defaults to JSON.
-- **Optional-field audit** — know which `std::optional<T>` fields were
-  actually present in the config file (JSON: precise DOM-level check;
-  YAML: post-load nullopt check).
-- **Structured error codes** — machine-readable `ErrorCode` enum with
-  numeric ranges for file I/O (1–), JSON errors (10–), YAML errors
-  (20–), and validation errors (30–). A `constexpr error_code_message()`
-  helper provides human-readable labels.
-- **Exception-free public API** — all loader functions catch underlying
-  iguana parse exceptions at the boundary and translate them into error
-  codes. No exceptions escape the public interface.
-- **CSV code generator** — `scripts/gen_config.py` reads a CSV schema,
-  emits a `YLT_REFL`-annotated struct plus a `validate_<Name>()` function
-  with range checks, and (optionally) generates matching JSON/YAML sample
-  configs — valid (defaults) and invalid (out-of-range) — from the same CSV.
-  emits a `YLT_REFL`-annotated struct plus a `validate_<Name>()` function
-  that checks min/max range constraints and returns a `LoadResult`.
+- **Optional-field audit** — `std::optional<T>` fields are tracked: which were
+  present in the file, which were absent (JSON: precise DOM-level check;
+  YAML: post-load nullopt check). Results reported via `LoadResult`.
+- **Structured error codes** — `ErrorCode` enum with numeric ranges for file
+  I/O (1–9), JSON (10–19), YAML (20–29), and validation/schema (30–39).
+  Ranges enforced by `static_assert`. `constexpr error_code_message()` for
+  logging.
+- **Schema versioning** — optional `$schema` key enforcement via
+  `load_versioned()` or the `expected_schema_version` parameter on all
+  loader functions. Mismatches return `kSchemaMismatch`.
+- **Serialization** — `to_json()`, `to_yaml()`, `save_to_json_file()`,
+  `save_to_yaml_file()` round-trip config structs back to strings or files.
+- **Exception-free public API** — exceptions from the underlying iguana
+  parser are caught at the boundary and translated to error codes.
+- **CSV code generator** — `scripts/gen_config.py` turns a CSV schema into
+  `YLT_REFL`-annotated structs + `validate_<Name>()` functions with range
+  checks, plus optional sample JSON/YAML configs.
+- **Provenance stamp** — every generated file records schema version, source
+  CSV, MD5 hash, and UTC timestamp in a `///` comment block.
 - **Zero external dependencies** — only standard library + vendored headers.
-- **Debug-friendly** — built-in VS Code `launch.json` and `tasks.json` for
-  lldb-based debugging.
-- **Auto-formatted code** — `scripts/pre-commit` git hook formats staged
-  C++ files on every commit; Claude Code's `PostToolUse` hook does the same
-  after every edit. `cmake --build build --target check-format` enforces
-  compliance in CI.
-
-## Supported config field types
-
-Any type that iguana can deserialize from JSON/YAML is supported. Common types:
-
-| C++ type              | Example default       | Notes |
-|-----------------------|-----------------------|-------|
-| `int32_t` (`int`)     | `8080`                | Fixed-width via `<cstdint>`. `int` is a synonym for `int32`. Numeric types support min/max range checks |
-| `int8_t` … `int64_t`  | `0`                   | Explicit-width CSV types `int8`/`int16`/`int32`/`int64` |
-| `uint8_t` … `uint64_t`| `0`                   | Explicit-width CSV types `uint8`/`uint16`/`uint32`/`uint64` |
-| `double`              | `30.0`                | |
-| `bool`                | `false`               | |
-| `std::string`         | `"0.0.0.0"`           | Quoted in the config file |
-| `std::vector<int32_t>`| (no default)          | CSV `vector<int>`; array of fixed-width ints |
-| `std::vector<std::string>` | (no default)     | Array of strings |
-| `std::optional<T>`    | —                     | Field that may be absent from the file |
-
-Integer config fields are emitted as fixed-width `<cstdint>` typedefs
-(`int32_t`, `uint16_t`, …) rather than the implementation-defined-width `int`,
-so a calibration parameter's range is portable across ECU toolchains
-(MISRA/AUTOSAR-friendly). `int` remains a valid CSV type and is a synonym for
-`int32` → `int32_t`. The generator rejects `default`/`min`/`max` literals that
-do not fit the declared width (e.g. `int8` with `default=300`).
-
-A field without a default (`std::optional<T>` or plain `T` with no `= value`)
-will be `std::nullopt` / zero-initialized when the key is missing from the
-config file.
+- **Auto-formatted** — pre-commit hook and PostToolUse hook keep code
+  formatted; `check-format` CMake target for CI enforcement.
 
 ## Quick start
 
-```cpp
-#include <light_config/light_config.hpp>
-
-struct AppConfig {
-    std::string host = "0.0.0.0";
-    int port          = 8080;
-    bool debug        = false;
-    std::optional<std::string> log_file;
-    std::optional<int>         max_connections;
-};
-YLT_REFL(AppConfig, host, port, debug, log_file, max_connections);
-
-int main() {
-    AppConfig cfg;
-    auto r = light_config::load(cfg, "config.json");
-
-    if (!r.ok()) {
-        std::cerr << "Config error [" << static_cast<int>(r.code)
-                  << "]: " << r.message << '\n';
-        return 1;
-    }
-
-    // Check which optional fields were missing from the file.
-    for (auto& name : r.absent_optionals)
-        std::cout << "Using default for: " << name << '\n';
-}
-```
+Annotate your struct with `YLT_REFL`, then call `light_config::load()` with a
+file path. Errors are returned via `LoadResult` rather than thrown. See
+[examples/example.cpp](examples/example.cpp) and
+[examples/sample_config.csv](examples/sample_config.csv) for a complete
+demonstration.
 
 ## Build
 
 ```bash
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --target example_json    # run the example
 cmake --build build --target test_basic      # build tests
-./build/tests/test_basic                     # run 13 unit tests
+./build/tests/test_basic                     # run all unit tests
+cmake --build build --target example_json    # build and run the example
 ```
 
-CMake requires 3.16+. C++17 toolchain required (Apple Clang 15+, GCC 9+,
-MSVC 2019 16.8+).
+CMake 3.16+, C++17 toolchain required (Apple Clang 15+, GCC 9+, MSVC 2019 16.8+).
+See [docs/setup-ubuntu-22.04.md](docs/setup-ubuntu-22.04.md) for Ubuntu setup.
 
-See [docs/setup-ubuntu-22.04.md](docs/setup-ubuntu-22.04.md) for a detailed
-Ubuntu 22.04 environment setup guide including formatting, static analysis,
-and troubleshooting.
-
-## Formatting
-
-```bash
-# Format all hand-written sources
-cmake --build build --target format
-
-# CI-style dry-run check
-cmake --build build --target check-format
-
-# Install the pre-commit hook (auto-format on git commit)
-ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
-```
-
-The project follows a [.clang-format](.clang-format) style (Google-based, 4-space
-indent, 100-column limit).  The [pre-commit hook](scripts/pre-commit) and
-`check-format` CMake target both read this file.
-
-## API reference
+## API overview
 
 ### Loader functions
 
+All loader functions return `LoadResult` and accept an optional
+`expected_schema_version` parameter (empty = permissive, no version check):
+
 | Function | Description |
 |---|---|
-| `load(cfg, path, fmt=Auto)` | Load file; auto-detect format from extension |
+| `load(cfg, path, fmt=Auto)` | Auto-detect format from extension |
+| `load_versioned(cfg, path, expected_schema_version, fmt=Auto)` | Load with `$schema` enforcement |
 | `load_from_json_file(cfg, path)` | Load a JSON file |
 | `load_from_yaml_file(cfg, path)` | Load a YAML file |
-| `load_from_json_string(cfg, content)` | Load from an in-memory JSON string |
-| `load_from_yaml_string(cfg, content)` | Load from an in-memory YAML string |
+| `load_from_json_string(cfg, json_str)` | Parse an in-memory JSON string |
+| `load_from_yaml_string(cfg, yaml_str)` | Parse an in-memory YAML string |
 
-All functions return a `LoadResult` (exception-free — failures appear as
-error codes, never as thrown exceptions).
+### Serialization
 
-### ErrorCode
+| Function | Returns |
+|---|---|
+| `to_json(cfg, pretty=false)` | `std::optional<std::string>` |
+| `to_yaml(cfg)` | `std::optional<std::string>` |
+| `save_to_json_file(cfg, path, pretty=true)` | `bool` |
+| `save_to_yaml_file(cfg, path)` | `bool` |
 
-```cpp
-enum class ErrorCode {
-    kOk = 0,                      // Success.
+### ErrorCode (excerpt)
 
-    // File I/O errors (1–9)
-    kFileReadError = 1,           // Cannot access or stat the file.
-    kFileEmpty = 2,               // File exists but is empty.
-
-    // JSON errors (10–19)
-    kJsonParseError = 10,         // JSON syntax or structural error.
-    kJsonDeserializeError = 11,   // JSON parsed OK, but struct population failed.
-
-    // YAML errors (20–29)
-    kYamlParseError = 20,         // YAML syntax or structural error.
-
-    // Validation errors (30–)
-    kValidationError = 30,        // Config values out of allowed range.
-};
-
-// Human-readable label for an ErrorCode (constexpr, noexcept).
-constexpr const char* error_code_message(ErrorCode code) noexcept;
-```
-
-`error_code_message()` returns an empty string for `kOk` and `"file read
-error"` / `"JSON parse error"` / etc. for failure codes. Suitable for
-logging or diagnostics.
+`kOk` (0), `kFileReadError` (1), `kFileEmpty` (2), `kJsonParseError` (10),
+`kJsonDeserializeError` (11), `kYamlParseError` (20),
+`kValidationError` (30), `kSchemaMismatch` (31). See `error_code_message()`
+for human-readable labels.
 
 ### LoadResult
 
-```cpp
-struct LoadResult {
-    ErrorCode code = ErrorCode::kOk;
-    std::string message;                       // detail when code != kOk
-    std::vector<std::string> absent_optionals; // optional fields missing from the file
-    std::vector<std::string> present_fields;   // every field that was found
+Return type for all loader and validation functions:
+- `code` — `ErrorCode::kOk` on success.
+- `message` — detail when `code != kOk`.
+- `absent_optionals` — `std::optional` fields missing from the file.
+- `present_fields` — every field that was found.
+- `ok()` — shorthand for `code == kOk`.
 
-    bool ok() const noexcept;                  // true when code == kOk
-    static LoadResult success();
-    static LoadResult failure(ErrorCode c, std::string msg = "");
-};
-```
+Factory: `LoadResult::success()`, `LoadResult::failure(code, msg)`.
 
-When `ok()` returns true, `absent_optionals` and `present_fields` are
-populated. When false, `message` carries the reason. Both vectors are
-cleared on failure.
+### Format detection
+
+`Format::Auto` detects from extension; `Format::Json` / `Format::Yaml` force
+a specific parser. Pass to `load()` to override.
 
 ### Optional-field audit
 
-Fields declared as `std::optional<T>` but absent from the config file
-appear in `absent_optionals` and are set to `std::nullopt`. Fields present
-in the file appear in `present_fields`.
+`"key": null` in JSON is treated as *present* (DOM-level check). The YAML
+loader conflates explicit null with absent — both produce `std::nullopt`.
+Nested struct fields get dot-separated paths (e.g. `"server.port"`).
 
-The JSON loader parses the file into a DOM first, so `"key": null` is
-correctly treated as *present* (not absent). The YAML loader cannot
-distinguish absent from explicit null — both cases produce `std::nullopt`
-and are reported as absent.
+## Supported field types
 
-### Format enum
+Any type iguana can deserialize. Common:
 
-```cpp
-enum class Format {
-    Auto,   // Detect from file extension (.json / .yaml / .yml); default = JSON.
-    Json,   // Force JSON parsing.
-    Yaml    // Force YAML parsing.
-};
-```
-
-Pass `Format::Json` or `Format::Yaml` to `load()` to override auto-detection.
-
-## Config field rules
-
-A field's presence in the config file interacts with its C++ declaration:
-
-| Declaration | Key in file | Behavior |
+| C++ type | CSV type | Notes |
 |---|---|---|
-| `T f = v;` | present | `f` = parsed value |
-| `T f = v;` | absent | `f` = `v` (default preserved) |
-| `T f;` | present | `f` = parsed value |
-| `T f;` | absent | `f` = value-initialized (0, empty string, etc.) |
-| `std::optional<T> f;` | present | `f` = parsed value |
-| `std::optional<T> f;` | absent | `f` = `std::nullopt`, reported in `absent_optionals` |
-| `std::optional<T> f;` | key is null (JSON) | `f` = `std::nullopt`, reported in `present_fields` |
+| `int32_t` … `int64_t` | `int`/`int8`…`int64` | Fixed-width; CSV `int` → `int32_t` |
+| `uint8_t` … `uint64_t` | `uint8`…`uint64` | Fixed-width |
+| `double` | `double` | |
+| `bool` | `bool` | |
+| `std::string` | `string` | |
+| `std::vector<int32_t>` | `vector<int>` | |
+| `std::vector<std::string>` | `vector<string>` | |
+| `std::optional<T>` | (empty default) | Absence tracked in `absent_optionals` |
 
-## End-to-end validation
-
-The library loads and audits; validation is generated from CSV. Here is the
-complete pattern using a generated compound config header:
-
-```cpp
-#include <light_config/light_config.hpp>
-#include "app_config.hpp"  // generated from CSV
-#include <iostream>
-
-int main() {
-    AppConfig cfg;
-    auto r = light_config::load(cfg, "config.json");
-    if (!r.ok()) {
-        std::cerr << "Failed to load config: " << r.message << '\n';
-        return 1;
-    }
-
-    // Warn about missing optional fields (including nested, dot-separated).
-    for (auto& name : r.absent_optionals)
-        std::cerr << "warning: '" << name << "' not set, using default\n";
-
-    // Validate all range constraints — recurses into Server and Connection.
-    auto v = validate_AppConfig(cfg);
-    if (!v.ok()) {
-        std::cerr << v.message << '\n';
-        return 1;
-    }
-
-    std::cout << "Config loaded and validated successfully.\n";
-}
-```
+Integer defaults/min/max are validated at generation time — out-of-range
+literals (e.g. `int8` `default=300`) cause the generator to error.
 
 ## CSV code generator
 
-`scripts/gen_config.py` automates struct definition and range checks.
-Given a CSV schema, it produces a header with a `YLT_REFL`-annotated
-struct and a `validate_<Name>()` function that returns a `LoadResult`.
-
-### Usage
+`scripts/gen_config.py` reads a CSV schema and emits `YLT_REFL`-annotated
+structs + `validate_<Name>()` functions with range checks.
 
 ```bash
-python3 scripts/gen_config.py \
-  --input examples/sample_config.csv \
-   MyConfig \
-  --output include/my_config.hpp
+python3 scripts/gen_config.py --input examples/sample_config.csv --output-dir examples/
 ```
 
 ### CSV columns
 
-| Column | Description |
+| Column | Purpose |
 |---|---|
 | `field_name` | C++ member name |
-| `type` | `int` (→ `int32_t`), `int8`/`int16`/`int32`/`int64`/`uint8`/`uint16`/`uint32`/`uint64`, `double`, `bool`, `string`, `vector<string>`, `vector<int>`, `vector<double>` |
-| `default` | Literal default value; **leave empty** for `std::optional<T>`. For integer width types the literal must fit the declared width or the generator errors out. |
-| `min` | Inclusive lower bound (integer / double types; empty = no lower bound) |
-| `max` | Inclusive upper bound (integer / double types; empty = no upper bound) |
-| `description` | Emitted as a `//` comment in the generated header |
-| `group` | The exact C++ struct type name (e.g. `ServerConfig`, `ConnectionConfig`). Every row must have a non-empty `group` value. |
+| `group` | C++ struct type name **(required, non-empty)** |
+| `type` | Built-in type name, or another group name for containment |
+| `default` | C++ literal; leave empty for `std::optional<T>` |
+| `min` | Inclusive lower bound (integer/double) |
+| `max` | Inclusive upper bound (integer/double) |
+| `description` | Emitted as a `//` comment |
+| `hpp_file` | (optional) Output file name for CSV-driven grouping |
 
-### Nested structs
+### Containment and nested structs
 
-When rows share a non-empty `group` value, the generator creates a separate
-nested struct for each group, each with its own `YLT_REFL` macro. The parent
-struct includes the nested struct as a member named after the group.
+Set a row's `type` to another group's name to nest that struct as a member.
+Example: a row `server, AppConfig, ServerConfig` means "AppConfig has a
+`ServerConfig server` member". The root struct is auto-detected.
 
-Example CSV with containment expressed via the `type` column:
+### Top-level metadata (`__metadata__` rows)
 
-```csv
-field_name,group,type,default,min,max,description
-backend,AppConfig,ServerConfig,,,,Backend server config
-host,ServerConfig,string,"localhost",,,Backend hostname
-port,ServerConfig,int,8080,1,65535,Backend port
+Optional rows before the column header configure global settings:
+
+| Key | Sets |
+|---|---|
+| `schema_version` | `constexpr k<Name>SchemaVersion` constant + provenance stamp |
+| `namespace` | C++ namespace for all generated code |
+| `generator` | Name in the provenance stamp |
+
+CLI flags `--namespace` and `--schema-version` override metadata values.
+
+### Output modes
+
+1. **CSV-driven** (highest priority) — groups placed by `hpp_file` column
+2. **`--per-struct`** — one `.hpp`/`.cpp` pair per struct
+3. **Monolithic** (default) — all structs in one pair
+
+## Formatting
+
+```bash
+cmake --build build --target format        # format all hand-written sources
+cmake --build build --target check-format  # CI dry-run check
+ln -sf ../../scripts/pre-commit .git/hooks/pre-commit  # install hook
 ```
-
-The row `backend,AppConfig,ServerConfig` means: "AppConfig contains a
-member named `backend` of type `ServerConfig`".  The root struct is
-auto-detected as the group that no other group references.
-
-Generates:
-
-```cpp
-struct ServerConfig {
-    std::string host = "localhost";
-    int port = 8080;
-};
-YLT_REFL(ServerConfig, host, port);
-
-struct AppConfig {
-    // ... own fields ...
-    ServerConfig backend;
-};
-YLT_REFL(AppConfig, ..., backend);
-```
-
-The `validate_AppConfig()` function automatically calls `validate_Server()`
-to recurse into nested struct members.
-
-When loading configs with nested structs, `absent_optionals` and
-`present_fields` use dot-separated paths (e.g., `"server.port"`,
-`"server.host"`) to identify nested fields.
-
-
-### Workflow
-
-1. Define your fields in a CSV (top-level and grouped):
-   ```csv
-   field_name,group,type,default,min,max,description
-   debug,AppConfig,bool,false,,,Enable debug logging
-   server,AppConfig,ServerConfig,,,,Backend server
-   host,ServerConfig,string,"0.0.0.0",,,Bind address
-   port,ServerConfig,int,8080,1024,65535,Listening port
-   ```
-2. Generate the header (root is auto-detected from containment):
-   ```bash
-   python3 scripts/gen_config.py -i schema.csv -o include/app_config.hpp
-   ```
-3. Include and use in your application:
-   ```cpp
-   #include "app_config.hpp"
-
-   AppConfig cfg;
-   auto load_r = light_config::load(cfg, "config.json");
-   if (!load_r.ok()) return 1;
-
-   auto val_r = validate_AppConfig(cfg);
-   if (!val_r.ok()) {
-       std::cerr << val_r.message << '\n';
-       return 1;
-   }
-   ```
-
-The generated `validate_<Name>()` function checks all fields that have
-`min`/`max` constraints and returns `ErrorCode::kValidationError` with a
-multi-line summary of every violated constraint.
-
 
 ## License
 
