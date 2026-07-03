@@ -20,8 +20,8 @@ def _write(name: str, text: str) -> str:
 
 CSV = (
     "__metadata__,schema_version=1.3.0,generator=light_config\n"
-    "field_name,group,type,default,min,max,description,hpp_file\n"
-    "debug,AppConfig,bool,false,,,enable debug,app_config.hpp\n"
+    "field_name,group,type,default,min,max,optional,description,hpp_file\n"
+    "debug,AppConfig,bool,false,,,false,enable debug,app_config.hpp\n"
 )
 
 p = _write("sample_config.csv", CSV)
@@ -45,7 +45,7 @@ prov = _build_provenance(cfg, model, p)
 assert prov.schema_version == "9.9.9", prov.schema_version
 
 # 3. no metadata + no override -> unknown
-p2 = _write("bare.csv", "field_name,group,type\nx,Foo,int\n")
+p2 = _write("bare.csv", "field_name,group,type,default,min,max,optional,description\nx,Foo,int,42,,,false,Value\n")
 model2 = SchemaModel.from_csv(p2)
 cfg2 = GeneratorConfig(input_csv=p2, output_dir=tempfile.mkdtemp())
 prov2 = _build_provenance(cfg2, model2, p2)

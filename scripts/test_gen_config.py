@@ -97,42 +97,41 @@ def _generate_exits(csv_text: str) -> bool:
 
 def test_type_mapping() -> None:
     csv_text = (
-        "field_name,group,type,default,min,max,description\n"
-        "port,MyConfig,int,8080,1,65535,Port\n"
-        "gears,MyConfig,uint16,0,0,65535,Gears\n"
-        "slot,MyConfig,int8,3,0,127,Slot\n"
-        "counts,MyConfig,vector<int>,,,Counts\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "port,MyConfig,int,8080,1,65535,false,Port\n"
+        "gears,MyConfig,uint16,0,0,65535,false,Gears\n"
+        "slot,MyConfig,int8,3,0,127,false,Slot\n"
+        "counts,MyConfig,vector<int>,,,,true,Optional counts\n"
     )
     _, hpp = _generate(csv_text)
     check("int32_t port = 8080;" in hpp, "int -> int32_t")
     check("uint16_t gears = 0;" in hpp, "uint16 -> uint16_t")
     check("int8_t slot = 3;" in hpp, "int8 -> int8_t")
-    check("std::vector<int32_t> counts;" in hpp or
-          "std::optional<std::vector<int32_t>> counts;" in hpp,
-          "vector<int> -> std::vector<int32_t>")
+    check("std::optional<std::vector<int32_t>> counts;" in hpp,
+          "optional vector<int> -> std::optional<std::vector<int32_t>>")
     check("#include <cstdint>" in hpp, "<cstdint> included")
 
 
 def test_unknown_type_rejected() -> None:
     csv_text = (
-        "field_name,group,type,default,min,max,description\n"
-        "weird,MyConfig,int9,0,,,Bad type\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "weird,MyConfig,int9,0,,,false,Bad type\n"
     )
     check(_generate_exits(csv_text), "unknown type 'int9' rejected")
 
 
 def test_out_of_range_default_rejected() -> None:
     csv_text = (
-        "field_name,group,type,default,min,max,description\n"
-        "too_big,MyConfig,int8,300,,,Too big for int8\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "too_big,MyConfig,int8,300,,,false,Too big for int8\n"
     )
     check(_generate_exits(csv_text), "int8 default=300 rejected (out of range)")
 
 
 def test_out_of_range_bound_rejected() -> None:
     csv_text = (
-        "field_name,group,type,default,min,max,description\n"
-        "lo,MyConfig,uint8,0,-1,255,Negative min for unsigned\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "lo,MyConfig,uint8,0,-1,255,false,Negative min for unsigned\n"
     )
     check(_generate_exits(csv_text), "uint8 min=-1 rejected (out of range)")
 
@@ -140,8 +139,8 @@ def test_out_of_range_bound_rejected() -> None:
 def test_back_compat_int_still_works() -> None:
     """Existing CSV using `int` regenerates with fixed-width int32_t."""
     csv_text = (
-        "field_name,group,type,default,min,max,description\n"
-        "v,MyConfig,int,42,0,100,Value\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
     )
     _, hpp = _generate(csv_text)
     check("int32_t v = 42;" in hpp, "back-compat: int still emits int32_t")
@@ -151,8 +150,8 @@ def test_namespace_from_metadata_emits_wrapper() -> None:
     """__metadata__ namespace=k --> struct is inside namespace k."""
     csv_text = (
         "__metadata__,namespace=myproj\n"
-        "field_name,group,type,default,min,max,description\n"
-        "v,MyConfig,int,42,0,100,Value\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
     )
     _, hpp = _generate(csv_text)
     check("namespace myproj {" in hpp,
@@ -165,8 +164,8 @@ def test_namespace_nested_from_metadata() -> None:
     """__metadata__ namespace=a::b --> nested namespace emitted."""
     csv_text = (
         "__metadata__,namespace=a::b\n"
-        "field_name,group,type,default,min,max,description\n"
-        "v,MyConfig,int,42,0,100,Value\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
     )
     _, hpp = _generate(csv_text)
     check("namespace a::b {" in hpp,
@@ -177,8 +176,8 @@ def test_namespace_cli_override() -> None:
     """CLI --namespace overrides __metadata__ namespace."""
     csv_text = (
         "__metadata__,namespace=csv_ns\n"
-        "field_name,group,type,default,min,max,description\n"
-        "v,MyConfig,int,42,0,100,Value\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
     )
     csv_path, out_dir = _write_csv(csv_text)
     cfg = gen_config.GeneratorConfig(
@@ -205,8 +204,8 @@ def test_namespace_cli_override() -> None:
 def test_back_compat_no_namespace_global_scope() -> None:
     """No namespace metadata or CLI -> structs at global scope (unchanged)."""
     csv_text = (
-        "field_name,group,type,default,min,max,description\n"
-        "v,MyConfig,int,42,0,100,Value\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
     )
     _, hpp = _generate(csv_text)
     check("namespace" not in hpp.split("#include")[-1],
@@ -219,8 +218,8 @@ def test_schema_version_constant_emitted() -> None:
     """__metadata__ schema_version → constexpr constant in generated code."""
     csv_text = (
         "__metadata__,schema_version=3.2.1,generator=light_config\n"
-        "field_name,group,type,default,min,max,description\n"
-        "v,MyConfig,int,42,0,100,Value\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
     )
     _, hpp = _generate(csv_text)
     check(
@@ -232,14 +231,111 @@ def test_schema_version_constant_emitted() -> None:
 def test_schema_version_missing_metadata_emits_empty() -> None:
     """No __metadata__ schema_version → empty constant emitted."""
     csv_text = (
-        "field_name,group,type,default,min,max,description\n"
-        "v,MyConfig,int,42,0,100,Value\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
     )
     _, hpp = _generate(csv_text)
     check(
         'constexpr std::string_view kMyConfigSchemaVersion{""};' in hpp,
         "missing schema_version emits empty string constant",
     )
+
+
+def test_optional_column_required() -> None:
+    """CSV missing the 'optional' column is rejected."""
+    csv_text = (
+        "field_name,group,type,default,min,max,description\n"
+        "v,MyConfig,int,42,0,100,Value\n"
+    )
+    check(_generate_exits(csv_text),
+          "missing 'optional' column is rejected")
+
+
+def test_optional_true_without_default() -> None:
+    """optional=true, no default -> std::optional<T> (no initializer)."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "cert,MyConfig,string,,,,true,Cert file\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("std::optional<std::string> cert;" in hpp,
+          "optional without default -> std::optional<T> field;")
+
+
+def test_optional_true_with_default() -> None:
+    """optional=true with default -> std::optional<T> = val."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "port,MyConfig,int,8080,1,65535,true,Optional port\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("std::optional<int32_t> port = 8080;" in hpp,
+          "optional with default -> std::optional<T> = val")
+
+
+def test_required_without_default_rejected() -> None:
+    """optional=false and no default -> generator error."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "port,MyConfig,int,,,,false,Required port\n"
+    )
+    check(_generate_exits(csv_text),
+          "required field without default is rejected")
+
+
+def test_optional_nested_struct_rejected() -> None:
+    """optional=true on a nested-struct type -> generator error."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "host,Nested,string,localhost,,,false,IP\n"
+        "parent,Root,Nested,,,,true,Nested struct\n"
+    )
+    check(_generate_exits(csv_text),
+          "optional=true on nested struct type is rejected")
+
+
+def test_optional_false_explicit() -> None:
+    """optional=false with default -> plain T field."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "port,MyConfig,int,8080,1,65535,false,Required port\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("int32_t port = 8080;" in hpp,
+          "optional=false -> plain T field")
+    check("std::optional" not in hpp,
+          "optional=false -> no optional in output")
+
+
+def test_optional_empty_treated_as_false() -> None:
+    """Empty optional column is treated as false."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "port,MyConfig,int,8080,1,65535,,Required port\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("int32_t port = 8080;" in hpp,
+          "empty optional column -> plain T field")
+    check("std::optional" not in hpp,
+          "empty optional column -> no optional in output")
+
+
+def test_optional_validation_uses_value() -> None:
+    """Validate code uses .value() for optional fields with range constraints."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "port,MyConfig,int,,1,65535,true,Optional port with range\n"
+        "host,MyConfig,string,localhost,,,false,Required host\n"
+    )
+    out_dir, hpp = _generate(csv_text)
+    # Find the .cpp file
+    cpp_files = list(out_dir.glob("*.cpp"))
+    check(bool(cpp_files), "cpp file emitted for validation test")
+    cpp = cpp_files[0].read_text()
+    check("cfg.port.has_value()" in cpp,
+          "optional field validation guards with has_value()")
+    check("cfg.port.value()" in cpp,
+          "optional field validation accesses .value()")
 
 
 def main() -> int:
@@ -254,6 +350,14 @@ def main() -> int:
     test_back_compat_no_namespace_global_scope()
     test_schema_version_constant_emitted()
     test_schema_version_missing_metadata_emits_empty()
+    test_optional_column_required()
+    test_optional_true_without_default()
+    test_optional_true_with_default()
+    test_required_without_default_rejected()
+    test_optional_nested_struct_rejected()
+    test_optional_false_explicit()
+    test_optional_empty_treated_as_false()
+    test_optional_validation_uses_value()
     if _FAIL:
         print(f"\n{_FAIL} self-test(s) failed.")
         return 1

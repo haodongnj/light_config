@@ -12,8 +12,8 @@ from gen_config import GeneratorConfig, generate  # noqa: E402
 
 CSV = (
     "__metadata__,schema_version=1.3.0,generator=light_config\n"
-    "field_name,group,type,default,min,max,description,hpp_file\n"
-    "debug,AppConfig,bool,false,,,enable debug,app_config.hpp\n"
+    "field_name,group,type,default,min,max,optional,description,hpp_file\n"
+    "debug,AppConfig,bool,false,,,false,enable debug,app_config.hpp\n"
 )
 
 d = tempfile.mkdtemp()
@@ -56,7 +56,7 @@ assert "schema_version : 7.7.7" in hpp2, hpp2
 d2 = tempfile.mkdtemp()
 csv2 = os.path.join(d2, "bare.csv")
 with open(csv2, "w", encoding="utf-8") as f:
-    f.write("field_name,group,type\nx,Foo,int\n")
+    f.write("field_name,group,type,default,min,max,optional,description\nx,Foo,int,42,,,false,Value\n")
 out3 = tempfile.mkdtemp()
 cfg3 = GeneratorConfig(input_csv=csv2, output_dir=out3)
 generate(cfg3)

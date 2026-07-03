@@ -1,7 +1,6 @@
 debug: false
 log_file: /var/log/app.log
-allowed_origins:
-  - "example"
+allowed_origins: null
 server:
   host: 0.0.0.0
   port: 8080
@@ -9,7 +8,6 @@ server:
 connection:
   max_connections: 1000
   timeout_sec: 30.0
-  cert_file: ""
+  cert_file: null
   retry_times: 3
-  allowed_ciphers:
-    - "example"
+  allowed_ciphers: null

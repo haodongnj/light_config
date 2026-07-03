@@ -18,8 +18,8 @@ def _write(name: str, text: str) -> str:
 # 1. metadata row parsed into model.metadata, stripped from data rows
 p = _write("m.csv", (
     "__metadata__,schema_version=1.3.0,generator=light_config\n"
-    "field_name,group,type,default,min,max,description,hpp_file\n"
-    "debug,AppConfig,bool,false,,,Enable debug logging,app_config.hpp\n"
+    "field_name,group,type,default,min,max,optional,description,hpp_file\n"
+    "debug,AppConfig,bool,false,,,false,Enable debug logging,app_config.hpp\n"
 ))
 m = SchemaModel.from_csv(p)
 assert m.metadata == {"schema_version": "1.3.0", "generator": "light_config"}, m.metadata
@@ -31,16 +31,16 @@ assert "debug" in (m.groups["AppConfig"][0]["field_name"]), m.groups
 p = _write("m2.csv", (
     "__metadata__,schema_version=1.0.0\n"
     "__metadata__,schema_version=2.0.0,generator=light_config\n"
-    "field_name,group,type\n"
-    "x,Foo,int\n"
+    "field_name,group,type,default,min,max,optional,description\n"
+    "x,Foo,int,42,,,false,Value\n"
 ))
 m = SchemaModel.from_csv(p)
 assert m.metadata == {"schema_version": "2.0.0", "generator": "light_config"}, m.metadata
 
 # 3. no metadata row -> empty dict, backward compatible
 p = _write("nometadata.csv", (
-    "field_name,group,type\n"
-    "x,Foo,int\n"
+    "field_name,group,type,default,min,max,optional,description\n"
+    "x,Foo,int,42,,,false,Value\n"
 ))
 m = SchemaModel.from_csv(p)
 assert m.metadata == {}, m.metadata
@@ -49,8 +49,8 @@ assert "Foo" in m.groups
 # 4. malformed metadata pair -> exit nonzero
 p = _write("bad.csv", (
     "__metadata__,NOEQUALSHERE\n"
-    "field_name,group,type\n"
-    "x,Foo,int\n"
+    "field_name,group,type,default,min,max,optional,description\n"
+    "x,Foo,int,42,,,false,Value\n"
 ))
 try:
     SchemaModel.from_csv(p)
@@ -60,8 +60,8 @@ except SystemExit:
 
 # 5. __metadata__ after header is NOT consumed (stays a data row)
 p = _write("late.csv", (
-    "field_name,group,type\n"
-    "__metadata__,Foo,string\n"
+    "field_name,group,type,default,min,max,optional,description\n"
+    "__metadata__,Foo,string,hi,,,false,Value\n"
 ))
 try:
     SchemaModel.from_csv(p)
@@ -70,18 +70,19 @@ except SystemExit:
 m = SchemaModel.from_csv(p)
 # The row maps as: field_name=__metadata__, group=Foo, type=string
 assert "Foo" in m.groups, m.groups
+# field_name and type span 8 columns (header), so group is Foo, type is string
 assert m.groups["Foo"][0]["field_name"] == "__metadata__", m.groups["Foo"][0]
 
 # 6. File-line accuracy: _csv_line and _csv_raw remain correct after metadata rows
 p = _write("linecheck.csv", (
     "__metadata__,schema_version=1.0.0\n"
-    "field_name,group,type\n"
-    "x,Foo,int\n"
+    "field_name,group,type,default,min,max,optional,description\n"
+    "x,Foo,int,42,,,false,Value\n"
 ))
 m = SchemaModel.from_csv(p)
 row = m.groups["Foo"][0]
 assert row["_csv_line"] == 3, f"expected _csv_line=3, got {row['_csv_line']}"
-raw_third_line = "__metadata__,schema_version=1.0.0\nfield_name,group,type\nx,Foo,int\n"
+raw_third_line = "__metadata__,schema_version=1.0.0\nfield_name,group,type,default,min,max,optional,description\nx,Foo,int,42,,,false,Value\n"
 third_line = raw_third_line.splitlines()[2]  # 0-indexed -> line 3
 assert row["_csv_raw"] == third_line, (
     f"expected _csv_raw={third_line!r}, got {row['_csv_raw']!r}"

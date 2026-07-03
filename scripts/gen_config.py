@@ -190,7 +190,7 @@ class SchemaModel:
             sys.exit(1)
 
         header = [h.strip() for h in parsed[0]]
-        missing = {"field_name", "group", "type"} - set(header)
+        missing = {"field_name", "group", "type", "optional"} - set(header)
         if missing:
             print(f"Error: CSV missing required columns: {missing}", file=sys.stderr)
             sys.exit(1)
@@ -256,7 +256,16 @@ class SchemaModel:
             nested: list[tuple[str, str, dict]] = []
             for row in grows:
                 csv_type = row["type"].strip()
+                is_opt = _is_optional(row)
                 if csv_type in group_names:
+                    if is_opt:
+                        where = _row_location(row)
+                        print(
+                            f"Error: {where} nested struct field "
+                            f"'{row['field_name'].strip()}' cannot be optional.",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
                     nested.append((row["field_name"].strip(), csv_type, row))
                 else:
                     regular.append(row)
@@ -342,14 +351,14 @@ class SchemaModel:
     def _detect_optional(self) -> None:
         for gname in self.ordered_groups:
             for row in self.group_regular[gname]:
-                if not (row.get("default") or "").strip():
+                if _is_optional(row):
                     self.has_optional = True
                     return
 
     def group_has_optional(self, gname: str) -> bool:
         """Check whether a specific group contains any optional fields."""
         for row in self.group_regular.get(gname, []):
-            if not (row.get("default") or "").strip():
+            if _is_optional(row):
                 return True
         return False
 
@@ -426,6 +435,18 @@ def _int_range(csv_type: str) -> tuple[int, int]:
     return _INT_RANGES.get(csv_type, _INT_RANGES["int32"])
 
 
+def _is_optional(row: dict) -> bool:
+    """Return True when the 'optional' column is truthy."""
+    return (row.get("optional") or "").strip().lower() in ("true", "1", "yes")
+
+
+def _row_location(row: dict) -> str:
+    """Return '[filename:line]' for a parsed CSV row, for error messages."""
+    name = row.get("_csv_name", "")
+    line = row.get("_csv_line", "")
+    return f"[{name}:{line}]" if name and line else ""
+
+
 def _to_snake_case(camel: str) -> str:
     """Convert CamelCase to snake_case, e.g. AppConfig -> app_config."""
     s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', camel)
@@ -454,7 +475,7 @@ def _csv_trace_block(row: dict, indent: str = "") -> str:
     if not line_no:
         return ""
 
-    columns = ["field_name", "group", "type", "default", "min", "max", "description"]
+    columns = ["field_name", "group", "type", "default", "min", "max", "optional", "description"]
     if "hpp_file" in row:
         columns.append("hpp_file")
 
@@ -549,10 +570,13 @@ def _violating_value(min_val: str, max_val: str, csv_type: str) -> object:
 def _field_value(row: dict, use_default: bool = True, violate: bool = False) -> object:
     csv_type = row["type"].strip()
     default = (row.get("default") or "").strip()
+    is_opt = _is_optional(row)
 
     if use_default:
         if default:
             return _parse_default(default, csv_type)
+        if is_opt:
+            return None
         return _example_value(csv_type)
 
     min_val = (row.get("min") or "").strip()
@@ -627,16 +651,29 @@ def _make_struct_body(
         ftype_cell = row["type"].strip()
         default_cell = (row.get("default") or "").strip()
         cpp_type = map_type(ftype_cell)
+        is_opt = _is_optional(row)
         default_literal = escape_default(default_cell, cpp_type)
 
         desc = (row.get("description") or "").strip()
         if desc:
             lines.append(f"    // {desc}")
 
-        if default_cell == "":
-            lines.append(f"    std::optional<{cpp_type}> {fname};")
+        if is_opt:
+            if default_cell:
+                lines.append(
+                    f"    std::optional<{cpp_type}> {fname} = {default_literal};"
+                )
+            else:
+                lines.append(f"    std::optional<{cpp_type}> {fname};")
             has_optional = True
         else:
+            if not default_cell:
+                where = _row_location(row)
+                print(
+                    f"Error: {where} required field '{fname}' must have a default value.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             lines.append(f"    {cpp_type} {fname} = {default_literal};")
 
     for member_name, nested_type, orig_row in nested_members:
@@ -723,7 +760,7 @@ def _make_validate_impl(
         if not min_val and not max_val:
             continue
 
-        is_optional = default_cell == ""
+        is_optional = _is_optional(row)
         field_expr = f"cfg.{fname}.value()" if is_optional else f"cfg.{fname}"
 
         cond_parts: list[str] = []
