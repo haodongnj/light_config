@@ -186,21 +186,20 @@ connection:
   }
 
   // ---- Full valid JSON file: validates library end-to-end ----
-  // Uses scripts/valid_config.json, which has every field populated.
+  // Uses examples/valid_config.json, which has every field populated.
   // Relative path from the build directory; adjust if running elsewhere.
   {
-    const std::string json_path = "../examples/valid_config.json";
+    constexpr const char *kConfigPath = "../examples/valid_config.json";
 
     AppConfig cfg;
-    auto r = light_config::load(cfg, json_path, light_config::Format::Auto);
+    auto r = light_config::load(cfg, kConfigPath, light_config::Format::Auto);
     assert(r.ok());
 
     // Top-level fields
     assert(!cfg.debug);
     assert(cfg.log_file == "/var/log/app.log");
-    assert(cfg.allowed_origins.has_value());
-    assert(cfg.allowed_origins.value().size() == 1);
-    assert(cfg.allowed_origins.value()[0] == "example");
+    // JSON null → nullopt, but key was present → not in absent_optionals
+    assert(!cfg.allowed_origins.has_value());
 
     // Nested server
     assert(cfg.server.host == "0.0.0.0");
@@ -210,10 +209,13 @@ connection:
     // Nested connection
     assert(cfg.connection.max_connections == 1000);
     assert(cfg.connection.timeout_sec == 30.0);
-    assert(cfg.connection.cert_file.has_value());
-    assert(cfg.connection.cert_file.value().empty());
+    assert(cfg.connection.retry_times == 3);
+    assert(!cfg.connection.cert_file.has_value());
+    assert(!cfg.connection.allowed_ciphers.has_value());
 
-    // No absent optionals reported (all fields provided)
+    // JSON DOM audit distinguishes null (present) from absent.
+    // All null-valued optionals were explicitly present, so absent_optionals is
+    // empty.
     assert(r.absent_optionals.empty());
 
     // Validation should pass (all values within range)
@@ -221,6 +223,53 @@ connection:
     assert(val_r.ok());
 
     std::cout << "[PASS] Full valid JSON file loaded and validated.\n";
+  }
+
+  // ---- Full valid YAML file: validates library end-to-end ----
+  // Uses examples/valid_config.yaml, which has every field populated.
+  // Relative path from the build directory; adjust if running elsewhere.
+  {
+    constexpr const char *kConfigPath = "../examples/valid_config.yaml";
+
+    AppConfig cfg;
+    auto r = light_config::load(cfg, kConfigPath, light_config::Format::Auto);
+    assert(r.ok());
+
+    // Top-level fields
+    assert(!cfg.debug);
+    assert(cfg.log_file == "/var/log/app.log");
+    // YAML null → nullopt for optional fields (absent-vs-null conflated, no DOM
+    // audit)
+    assert(!cfg.allowed_origins.has_value());
+
+    // Nested server
+    assert(cfg.server.host == "0.0.0.0");
+    assert(cfg.server.port == 8080);
+    assert(cfg.server.backlog == 128);
+
+    // Nested connection
+    assert(cfg.connection.max_connections == 1000);
+    assert(cfg.connection.timeout_sec == 30.0);
+    assert(cfg.connection.retry_times == 3);
+    assert(!cfg.connection.cert_file.has_value());
+    assert(!cfg.connection.allowed_ciphers.has_value());
+
+    // YAML has no DOM audit (null == absent), so absent_optionals picks up
+    // null-valued optionals as absent.  Verify the expected set.
+    assert(r.absent_optionals.size() == 3);
+    auto is_absent = [&](const std::string &name) {
+      return std::find(r.absent_optionals.begin(), r.absent_optionals.end(),
+                       name) != r.absent_optionals.end();
+    };
+    assert(is_absent("allowed_origins"));
+    assert(is_absent("connection.cert_file"));
+    assert(is_absent("connection.allowed_ciphers"));
+
+    // Validation should pass (all values within range)
+    auto val_r = validate_AppConfig(cfg);
+    assert(val_r.ok());
+
+    std::cout << "[PASS] Full valid YAML file loaded and validated.\n";
   }
 
   std::cout << "\nAll examples passed.\n";
