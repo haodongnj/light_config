@@ -1,12 +1,12 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <light_config/light_config.hpp>
 
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include <doctest/doctest.h>
-#include <filesystem>
 #include <fstream>
 
 /// Config struct exercising various types.
