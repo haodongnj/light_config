@@ -24,6 +24,21 @@ from .exceptions import GeneratorError
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Enum definition
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EnumDef:
+    """Parsed enum declaration from a __enum__ metadata row."""
+
+    name: str                       # "LogLevel"
+    enumerators: list[tuple[str, int]]  # [("debug",0), ("info",1), ("warn",5)]
+    hpp_file: str                   # "network.hpp" — required
+    _csv_line: int                  # for error messages
+
+
 @dataclass
 class SchemaModel:
     """Parsed CSV schema — groups, fields, containment, root detection."""
@@ -37,6 +52,7 @@ class SchemaModel:
     ordered_groups: list[str] = field(default_factory=list)
     has_optional: bool = False
     metadata: dict[str, str] = field(default_factory=dict)
+    enums: dict[str, EnumDef] = field(default_factory=dict)
 
     @classmethod
     def from_csv(cls, input_path: str) -> "SchemaModel":
@@ -52,23 +68,34 @@ class SchemaModel:
             reader = csv.reader(f)
             parsed = list(reader)
 
-        # ---- Consume leading __metadata__ rows before the column header ----
+        # ---- Consume leading metadata rows before the column header ----
         metadata: dict[str, str] = {}
+        enum_rows: list[list[str]] = []
         n_meta: int = 0
-        while parsed and parsed[0] and parsed[0][0].strip() == "__metadata__":
-            meta_row = parsed.pop(0)
+        while parsed and parsed[0] and (
+            parsed[0][0].strip() == "__metadata__"
+            or parsed[0][0].strip() == "__enum__"
+        ):
+            row = parsed.pop(0)
+            row_type = row[0].strip()
             n_meta += 1
-            for cell in meta_row[1:]:
-                cell = (cell or "").strip()
-                if cell == "":
-                    continue
-                if "=" not in cell:
-                    raise GeneratorError(
-                        f"malformed __metadata__ pair '{cell}' "
-                        f"(expected key=value)."
-                    )
-                k, _, v = cell.partition("=")
-                metadata[k.strip()] = v.strip()
+
+            if row_type == "__metadata__":
+                for cell in row[1:]:
+                    cell = (cell or "").strip()
+                    if cell == "":
+                        continue
+                    if "=" not in cell:
+                        raise GeneratorError(
+                            f"malformed __metadata__ pair '{cell}' "
+                            f"(expected key=value)."
+                        )
+                    k, _, v = cell.partition("=")
+                    metadata[k.strip()] = v.strip()
+            elif row_type == "__enum__":
+                # Inject the CSV line number for error messages
+                row[0] = str(n_meta + 1)
+                enum_rows.append(row)
 
         if len(parsed) < 2:
             raise GeneratorError("CSV file is empty.")
@@ -90,6 +117,7 @@ class SchemaModel:
 
         model = cls()
         model.metadata = metadata
+        model.enums = cls._parse_enum_rows(enum_rows, inpath.name)
         model._partition_rows(rows)
         model._resolve_hpp_files()
         model._classify_groups()
@@ -98,6 +126,120 @@ class SchemaModel:
         model._build_order()
         model._detect_optional()
         return model
+
+    @staticmethod
+    def _parse_enum_rows(raw_enum_rows: list[list[str]],
+                         csv_name: str) -> dict[str, EnumDef]:
+        """Parse __enum__ metadata rows; return dict keyed by enum name."""
+        result: dict[str, EnumDef] = {}
+        for row in raw_enum_rows:
+            line_num = int(row[0]) if row[0] else 0
+            kv: dict[str, str] = {}
+            for cell in row[1:]:
+                cell = (cell or "").strip()
+                if cell == "":
+                    continue
+                if "=" not in cell:
+                    raise GeneratorError(
+                        f"[{csv_name}:{line_num}] malformed __enum__ pair "
+                        f"'{cell}' (expected key=value)."
+                    )
+                k, _, v = cell.partition("=")
+                kv[k.strip()] = v.strip()
+
+            # Validate required keys
+            enum_name = kv.get("enum_name", "")
+            if not enum_name:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row missing required "
+                    f"key 'enum_name'."
+                )
+            enum_def_str = kv.get("enum_def", "")
+            if not enum_def_str:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row 'enum_name="
+                    f"{enum_name}' has empty enum_def."
+                )
+            hpp_file = kv.get("hpp_file", "")
+            if not hpp_file:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row 'enum_name="
+                    f"{enum_name}' missing required key 'hpp_file'."
+                )
+
+            # Check for duplicate enum_name
+            if enum_name in result:
+                first_line = result[enum_name]._csv_line
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] duplicate enum_name "
+                    f"'{enum_name}' (first declared at [{csv_name}:"
+                    f"{first_line}])."
+                )
+
+            # Parse enumerators (pipe-separated)
+            enumerators: list[tuple[str, int]] = []
+            claimed_ints: set[int] = set()
+            entries = [e.strip() for e in enum_def_str.split("|") if e.strip()]
+            if not entries:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row 'enum_name="
+                    f"{enum_name}' has empty enum_def."
+                )
+
+            # First pass: collect explicit values
+            auto_cursor = 0
+            for entry in entries:
+                if "=" in entry:
+                    name, _, val_str = entry.partition("=")
+                    name = name.strip()
+                    val_str = val_str.strip()
+                    if not name:
+                        raise GeneratorError(
+                            f"[{csv_name}:{line_num}] __enum__ row "
+                            f"'enum_name={enum_name}' has empty enumerator "
+                            f"name in entry '{entry}'."
+                        )
+                    try:
+                        val = int(val_str, 10)
+                    except ValueError:
+                        raise GeneratorError(
+                            f"[{csv_name}:{line_num}] __enum__ row "
+                            f"'enum_name={enum_name}' enumerator '{name}' "
+                            f"has non-integer value '{val_str}'."
+                        )
+                    claimed_ints.add(val)
+
+            # Second pass: build list, auto-assign gaps
+            seen_names: set[str] = set()
+            for entry in entries:
+                if "=" in entry:
+                    name, _, val_str = entry.partition("=")
+                    name = name.strip()
+                    val = int(val_str.strip(), 10)
+                else:
+                    name = entry.strip()
+                    # Find next available integer
+                    while auto_cursor in claimed_ints:
+                        auto_cursor += 1
+                    val = auto_cursor
+                    claimed_ints.add(val)
+
+                if name in seen_names:
+                    raise GeneratorError(
+                        f"[{csv_name}:{line_num}] __enum__ row "
+                        f"'enum_name={enum_name}' has duplicate enumerator "
+                        f"'{name}'."
+                    )
+                seen_names.add(name)
+                enumerators.append((name, val))
+
+            result[enum_name] = EnumDef(
+                name=enum_name,
+                enumerators=enumerators,
+                hpp_file=hpp_file,
+                _csv_line=line_num,
+            )
+        return result
 
     # -- internal helpers --------------------------------------------------
 
