@@ -18,28 +18,40 @@
 
 namespace light_config {
 
+/// Detect format from file extension.
+///
+/// `.yaml` / `.yml` → YAML; `.json` → JSON; no extension → JSON (default);
+/// anything else → Auto (caller should return kUnrecognizedFormat).
+inline Format detect_format(const std::string &path) {
+  auto dot = path.rfind('.');
+  if (dot == std::string::npos)
+    return Format::Json; // no extension
+  auto ext = path.substr(dot);
+  if (ext == ".yaml" || ext == ".yml")
+    return Format::Yaml;
+  if (ext == ".json")
+    return Format::Json;
+  return Format::Auto; // unrecognized extension
+}
+
 /// Infer format from file extension and load the config.
 ///
-/// `.yaml` / `.yml` → YAML; anything else → JSON.
+/// `.yaml` / `.yml` → YAML; `.json` → JSON; unrecognized extension →
+/// kUnrecognizedFormat error.
 template <typename T>
 LoadResult load(T &config, const std::string &path,
                 Format format = Format::Auto) {
+  if (format == Format::Auto) {
+    format = detect_format(path);
+  }
+  if (format == Format::Auto) {
+    return LoadResult::failure(ErrorCode::kUnrecognizedFormat,
+                               "cannot determine format from file extension '" +
+                                   path + "'");
+  }
   if (format == Format::Yaml) {
     return load_from_yaml_file(config, path);
   }
-  if (format == Format::Json) {
-    return load_from_json_file(config, path);
-  }
-
-  // Format::Auto – detect from suffix.
-  auto dot = path.rfind('.');
-  if (dot != std::string::npos) {
-    auto ext = path.substr(dot);
-    if (ext == ".yaml" || ext == ".yml") {
-      return load_from_yaml_file(config, path);
-    }
-  }
-  // Default to JSON.
   return load_from_json_file(config, path);
 }
 
@@ -54,20 +66,16 @@ template <typename T>
 LoadResult load_versioned(T &config, const std::string &path,
                           std::string_view expected_schema_version,
                           Format format = Format::Auto) {
+  if (format == Format::Auto) {
+    format = detect_format(path);
+  }
+  if (format == Format::Auto) {
+    return LoadResult::failure(ErrorCode::kUnrecognizedFormat,
+                               "cannot determine format from file extension '" +
+                                   path + "'");
+  }
   if (format == Format::Yaml) {
     return load_from_yaml_file(config, path, expected_schema_version);
-  }
-  if (format == Format::Json) {
-    return load_from_json_file(config, path, expected_schema_version);
-  }
-
-  // Format::Auto
-  auto dot = path.rfind('.');
-  if (dot != std::string::npos) {
-    auto ext = path.substr(dot);
-    if (ext == ".yaml" || ext == ".yml") {
-      return load_from_yaml_file(config, path, expected_schema_version);
-    }
   }
   return load_from_json_file(config, path, expected_schema_version);
 }

@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .codegen import CodeGenerator
 from .config import GeneratorConfig
+from .exceptions import GeneratorError
 from .provenance import Provenance
 from .schema import SchemaModel
 
@@ -141,7 +142,11 @@ def main() -> None:
         generate_samples=args.generate_samples,
         schema_version_override=args.schema_version,
     )
-    generate(config)
+    try:
+        generate(config)
+    except GeneratorError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

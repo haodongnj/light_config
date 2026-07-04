@@ -4,7 +4,6 @@
 #include <ylt/struct_yaml/yaml_reader.h>
 #include <ylt/struct_yaml/yaml_writer.h>
 
-#include <cstdint>
 #include <exception>
 
 #include "light_config/detail/audit_yaml.hpp"

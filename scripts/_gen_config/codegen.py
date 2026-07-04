@@ -167,9 +167,12 @@ class CodeGenerator:
         has_opt = any(
             self.model.group_has_optional(g) for g in groups
         )
+        has_int = any(
+            self.model.group_has_int_types(g) for g in groups
+        )
 
         lines: list[str] = [_make_header_preamble(has_opt, extra_includes,
-                                                  self.provenance)]
+                                                  self.provenance, has_int)]
         lines.extend(self._ns_open())
         lines.append("")
         for gname in groups:
@@ -256,7 +259,8 @@ class CodeGenerator:
     def _build_monolithic_header_content(self) -> str:
         lines: list[str] = [
             _make_header_preamble(self.model.has_optional,
-                                  provenance=self.provenance)
+                                  provenance=self.provenance,
+                                  has_int_types=self.model.has_int_types)
         ]
         lines.extend(self._ns_open())
         lines.append("")
@@ -304,9 +308,10 @@ class CodeGenerator:
         ]
         extra_includes = [_struct_to_hpp_name(nt) for nt in nested_types]
         has_opt = self.model.group_has_optional(gname)
+        has_int = self.model.group_has_int_types(gname)
 
         lines: list[str] = [_make_header_preamble(has_opt, extra_includes,
-                                                  self.provenance)]
+                                                  self.provenance, has_int)]
         lines.extend(self._ns_open())
         lines.append("")
         body, _ = _make_struct_body(

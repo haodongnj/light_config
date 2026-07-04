@@ -5,6 +5,7 @@ import tempfile
 import os
 sys.path.insert(0, "scripts")
 from gen_config import SchemaModel  # noqa: E402
+from _gen_config.exceptions import GeneratorError  # noqa: E402
 
 
 def _write(name: str, text: str) -> str:
@@ -54,8 +55,8 @@ p = _write("bad.csv", (
 ))
 try:
     SchemaModel.from_csv(p)
-    raise AssertionError("expected SystemExit")
-except SystemExit:
+    raise AssertionError("expected GeneratorError")
+except GeneratorError:
     pass
 
 # 5. __metadata__ after header is NOT consumed (stays a data row)
@@ -65,7 +66,7 @@ p = _write("late.csv", (
 ))
 try:
     SchemaModel.from_csv(p)
-except SystemExit:
+except GeneratorError:
     raise AssertionError("late metadata row should be treated as data, not error")
 m = SchemaModel.from_csv(p)
 # The row maps as: field_name=__metadata__, group=Foo, type=string

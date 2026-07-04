@@ -2,7 +2,6 @@
 C++ code generation — header and source string builders.
 """
 
-import sys
 from typing import Optional
 
 from .provenance import Provenance, _provenance_block
@@ -12,6 +11,7 @@ from .types import (
     _row_location,
     map_type,
 )
+from .exceptions import GeneratorError
 
 
 # ---------------------------------------------------------------------------
@@ -40,9 +40,11 @@ def _escape_default(val: str, cpp_type: str) -> str:
 
 def _make_header_preamble(has_optional: bool,
                           extra_includes: Optional[list[str]] = None,
-                          provenance: Optional[Provenance] = None) -> str:
+                          provenance: Optional[Provenance] = None,
+                          has_int_types: bool = True) -> str:
     """Return the full set of #include directives for a header file."""
     inc_opt = "#include <optional>" if has_optional else ""
+    inc_cstdint = "#include <cstdint>" if has_int_types else ""
     extra = "\n".join(f'#include "{inc}"' for inc in (extra_includes or []))
     parts = [
         "#pragma once",
@@ -55,10 +57,11 @@ def _make_header_preamble(has_optional: bool,
     parts.extend([
         "",
         "#include <light_config/light_config.hpp>",
-        "#include <cstdint>",
         "#include <string>",
         "#include <vector>",
     ])
+    if inc_cstdint:
+        parts.append(inc_cstdint)
     if inc_opt:
         parts.append(inc_opt)
     if extra:
@@ -101,11 +104,9 @@ def _make_struct_body(
         else:
             if not default_cell:
                 where = _row_location(row)
-                print(
-                    f"Error: {where} required field '{fname}' must have a default value.",
-                    file=sys.stderr,
+                raise GeneratorError(
+                    f"{where} required field '{fname}' must have a default value."
                 )
-                sys.exit(1)
             lines.append(f"    {cpp_type} {fname} = {default_literal};")
 
     for member_name, nested_type, orig_row in nested_members:

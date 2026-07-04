@@ -25,6 +25,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 import gen_config  # noqa: E402
+from _gen_config.exceptions import GeneratorError  # noqa: E402
 
 
 _FAIL = 0
@@ -89,7 +90,7 @@ def _generate_exits(csv_text: str) -> bool:
             sys.stderr = devnull
             gen_config.generate(cfg)
         return False
-    except SystemExit:
+    except (SystemExit, GeneratorError):
         return True
     finally:
         sys.stderr = old_err
@@ -109,7 +110,7 @@ def test_type_mapping() -> None:
     check("int8_t slot = 3;" in hpp, "int8 -> int8_t")
     check("std::optional<std::vector<int32_t>> counts;" in hpp,
           "optional vector<int> -> std::optional<std::vector<int32_t>>")
-    check("#include <cstdint>" in hpp, "<cstdint> included")
+    check("#include <cstdint>" in hpp, "<cstdint> included (int types present)")
 
 
 def test_unknown_type_rejected() -> None:

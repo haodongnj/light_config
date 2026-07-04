@@ -38,6 +38,9 @@ enum class ErrorCode {
   // ---- Validation errors (range 30–39) ----
   kValidationError = 30, ///< Config values out of allowed range.
   kSchemaMismatch = 31, ///< Config file schema version does not match expected.
+
+  // ---- Format / compatibility errors (range 40–49) ----
+  kUnrecognizedFormat = 40, ///< File extension is not a recognized format.
 };
 
 // Verify range boundaries — catches accidental drift when new error codes are
@@ -48,9 +51,8 @@ static_assert(static_cast<int>(ErrorCode::kJsonSerializeError) < 20,
               "ErrorCode range violation: JSON errors must stay in [10, 19]");
 static_assert(static_cast<int>(ErrorCode::kYamlSerializeError) < 30,
               "ErrorCode range violation: YAML errors must stay in [20, 29]");
-static_assert(
-    static_cast<int>(ErrorCode::kSchemaMismatch) < 40,
-    "ErrorCode range violation: Validation errors must stay in [30, 39]");
+static_assert(static_cast<int>(ErrorCode::kUnrecognizedFormat) < 50,
+              "ErrorCode range violation: Format errors must stay in [40, 49]");
 
 /// Human-readable description for an ErrorCode.
 /// Returns empty string for kOk.
@@ -78,6 +80,8 @@ constexpr const char *error_code_message(ErrorCode code) noexcept {
     return "validation error";
   case ErrorCode::kSchemaMismatch:
     return "schema version mismatch";
+  case ErrorCode::kUnrecognizedFormat:
+    return "unrecognized file format";
   }
   return "unknown error";
 }

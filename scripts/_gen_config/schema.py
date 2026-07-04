@@ -16,6 +16,7 @@ from .types import (
     _struct_to_hpp_name,
     INT_TYPES,
 )
+from .exceptions import GeneratorError
 
 
 # ---------------------------------------------------------------------------
@@ -41,8 +42,7 @@ class SchemaModel:
     def from_csv(cls, input_path: str) -> "SchemaModel":
         inpath = Path(input_path)
         if not inpath.exists():
-            print(f"Error: input file '{input_path}' not found.", file=sys.stderr)
-            sys.exit(1)
+            raise GeneratorError(f"input file '{input_path}' not found.")
 
         # Read raw lines for traceability comments in generated code.
         with open(inpath, "r", encoding="utf-8") as f:
@@ -63,24 +63,20 @@ class SchemaModel:
                 if cell == "":
                     continue
                 if "=" not in cell:
-                    print(
-                        f"Error: malformed __metadata__ pair '{cell}' "
-                        f"(expected key=value).",
-                        file=sys.stderr,
+                    raise GeneratorError(
+                        f"malformed __metadata__ pair '{cell}' "
+                        f"(expected key=value)."
                     )
-                    sys.exit(1)
                 k, _, v = cell.partition("=")
                 metadata[k.strip()] = v.strip()
 
         if len(parsed) < 2:
-            print("Error: CSV file is empty.", file=sys.stderr)
-            sys.exit(1)
+            raise GeneratorError("CSV file is empty.")
 
         header = [h.strip() for h in parsed[0]]
         missing = {"field_name", "group", "type", "optional"} - set(header)
         if missing:
-            print(f"Error: CSV missing required columns: {missing}", file=sys.stderr)
-            sys.exit(1)
+            raise GeneratorError(f"CSV missing required columns: {missing}")
 
         rows: list[dict] = []
         for i, line in enumerate(parsed[1:], start=2 + n_meta):
@@ -109,11 +105,9 @@ class SchemaModel:
         for row in rows:
             group = (row.get("group") or "").strip()
             if group == "":
-                print(
-                    "Error: every row must have a non-empty 'group' value.",
-                    file=sys.stderr,
+                raise GeneratorError(
+                    "every row must have a non-empty 'group' value."
                 )
-                sys.exit(1)
             self.groups.setdefault(group, []).append(row)
 
     def _resolve_hpp_files(self) -> None:
@@ -125,11 +119,9 @@ class SchemaModel:
             }
             vals.discard("")
             if len(vals) > 1:
-                print(
-                    f"Error: group '{gname}' has conflicting hpp_file values: {vals}",
-                    file=sys.stderr,
+                raise GeneratorError(
+                    f"group '{gname}' has conflicting hpp_file values: {vals}"
                 )
-                sys.exit(1)
             if len(vals) == 1:
                 self.group_hpp_file[gname] = vals.pop()
                 self.has_explicit_hpp_file = True
@@ -147,12 +139,10 @@ class SchemaModel:
                 if csv_type in group_names:
                     if is_opt:
                         where = _row_location(row)
-                        print(
-                            f"Error: {where} nested struct field "
-                            f"'{row['field_name'].strip()}' cannot be optional.",
-                            file=sys.stderr,
+                        raise GeneratorError(
+                            f"{where} nested struct field "
+                            f"'{row['field_name'].strip()}' cannot be optional."
                         )
-                        sys.exit(1)
                     nested.append((row["field_name"].strip(), csv_type, row))
                 else:
                     regular.append(row)
@@ -171,13 +161,11 @@ class SchemaModel:
             for row in self.group_regular[gname]:
                 csv_type = row["type"].strip()
                 if csv_type not in _BUILTIN_TYPES:
-                    print(
-                        f"Error: [{row.get('_csv_name','')}:{row.get('_csv_line','')}] "
+                    raise GeneratorError(
+                        f"[{row.get('_csv_name','')}:{row.get('_csv_line','')}] "
                         f"field '{row['field_name'].strip()}' has unknown type "
-                        f"'{csv_type}'.",
-                        file=sys.stderr,
+                        f"'{csv_type}'."
                     )
-                    sys.exit(1)
 
                 if csv_type in INT_TYPES:
                     self._validate_int_literals(row, csv_type)
@@ -193,20 +181,16 @@ class SchemaModel:
             try:
                 v = int(cell, 10)
             except ValueError:
-                print(
-                    f"Error: {where} field '{row['field_name'].strip()}' has "
-                    f"non-integer {col} '{cell}' for type '{csv_type}'.",
-                    file=sys.stderr,
+                raise GeneratorError(
+                    f"{where} field '{row['field_name'].strip()}' has "
+                    f"non-integer {col} '{cell}' for type '{csv_type}'."
                 )
-                sys.exit(1)
             if not (lo <= v <= hi):
-                print(
-                    f"Error: {where} field '{row['field_name'].strip()}' has "
+                raise GeneratorError(
+                    f"{where} field '{row['field_name'].strip()}' has "
                     f"{col} {v} out of range for type '{csv_type}' "
-                    f"[{lo}, {hi}].",
-                    file=sys.stderr,
+                    f"[{lo}, {hi}]."
                 )
-                sys.exit(1)
 
     def ordered_groups_actual(self) -> list[str]:
         """All groups in insertion order (used before root detection)."""
@@ -219,11 +203,9 @@ class SchemaModel:
                 referenced.add(nested_type)
         roots = [g for g in self.groups if g not in referenced]
         if len(roots) == 0:
-            print(
-                "Error: circular containment detected — no root struct found.",
-                file=sys.stderr,
+            raise GeneratorError(
+                "circular containment detected — no root struct found."
             )
-            sys.exit(1)
         if len(roots) > 1:
             print(
                 f"Warning: multiple root candidates {roots}; using '{roots[0]}'.",
@@ -242,10 +224,26 @@ class SchemaModel:
                     self.has_optional = True
                     return
 
+    @property
+    def has_int_types(self) -> bool:
+        """True when any group contains at least one integer-type field."""
+        for gname in self.ordered_groups:
+            if self.group_has_int_types(gname):
+                return True
+        return False
+
     def group_has_optional(self, gname: str) -> bool:
         """Check whether a specific group contains any optional fields."""
         for row in self.group_regular.get(gname, []):
             if _is_optional(row):
+                return True
+        return False
+
+    def group_has_int_types(self, gname: str) -> bool:
+        """Check whether a specific group contains any integer-type fields."""
+        for row in self.group_regular.get(gname, []):
+            csv_type = row["type"].strip()
+            if csv_type in INT_TYPES:
                 return True
         return False
 

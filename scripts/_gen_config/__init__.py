@@ -13,6 +13,7 @@ from .cpp_gen import (
     _make_validate_decl,
     _make_validate_impl,
 )
+from .exceptions import GeneratorError
 from .provenance import Provenance, _provenance_block
 from .samples import _build_sample_dict, _write_json, _write_yaml
 from .schema import SchemaModel
