@@ -6,9 +6,8 @@
 
 #include <cstdint>
 #include <exception>
-#include <filesystem>
-#include <system_error>
 
+#include "light_config/detail/file_utils.hpp"
 #include "light_config/load_result.hpp"
 #include <fstream>
 
@@ -67,21 +66,8 @@ template <typename T>
 LoadResult load_from_yaml_file(T &config, const std::string &path) {
   // Read file content.
   std::string content;
-  {
-    std::error_code ec;
-    auto size = std::filesystem::file_size(path, ec);
-    if (ec) {
-      return LoadResult::failure(ErrorCode::kFileReadError, ec.message());
-    }
-    if (size == 0) {
-      return LoadResult::failure(ErrorCode::kFileEmpty, path);
-    }
-    content.resize(size);
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-      return LoadResult::failure(ErrorCode::kFileReadError, path);
-    }
-    file.read(content.data(), size);
+  if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
+    return r;
   }
 
   // Load the struct from YAML.
@@ -161,21 +147,8 @@ LoadResult load_from_yaml_file(T &config, const std::string &path,
                                std::string_view expected_schema_version) {
   // Read file content.
   std::string content;
-  {
-    std::error_code ec;
-    auto size = std::filesystem::file_size(path, ec);
-    if (ec) {
-      return LoadResult::failure(ErrorCode::kFileReadError, ec.message());
-    }
-    if (size == 0) {
-      return LoadResult::failure(ErrorCode::kFileEmpty, path);
-    }
-    content.resize(size);
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-      return LoadResult::failure(ErrorCode::kFileReadError, path);
-    }
-    file.read(content.data(), size);
+  if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
+    return r;
   }
 
   return load_from_yaml_string(config, content, expected_schema_version);
