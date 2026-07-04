@@ -205,21 +205,26 @@ std::optional<std::string> to_json(const T &config, bool pretty = false) {
 /// \param[in] config  The config struct to serialize.
 /// \param[in] path    Path to the output JSON file.
 /// \param[in] pretty  If true, produce indented/pretty JSON (default: true).
-/// \return  true on success, false on serialization or I/O failure.
+/// \return  LoadResult with code==kOk on success; kJsonSerializeError or
+///          kFileWriteError on failure.
 template <typename T>
-bool save_to_json_file(const T &config, const std::string &path,
-                       bool pretty = true) {
+LoadResult save_to_json_file(const T &config, const std::string &path,
+                             bool pretty = true) {
   auto json_opt = to_json(config, pretty);
   if (!json_opt.has_value()) {
-    return false;
+    return LoadResult::failure(ErrorCode::kJsonSerializeError,
+                               "failed to serialize config to JSON");
   }
   std::ofstream file(path, std::ios::binary | std::ios::trunc);
   if (!file) {
-    return false;
+    return LoadResult::failure(ErrorCode::kFileWriteError, path);
   }
   file << json_opt.value();
   file.close();
-  return file.good();
+  if (!file.good()) {
+    return LoadResult::failure(ErrorCode::kFileWriteError, path);
+  }
+  return LoadResult::success();
 }
 
 } // namespace light_config

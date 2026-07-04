@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <doctest/doctest.h>
+#include <filesystem>
 #include <fstream>
 
 /// Config struct exercising various types.
@@ -173,6 +174,24 @@ TEST_CASE("JSON missing file error") {
   CHECK(!r.ok());
   CHECK(r.code == light_config::ErrorCode::kFileReadError);
   CHECK(!r.message.empty());
+}
+
+TEST_CASE("save_to_json_file: write to directory path fails") {
+  // Create a directory with a file-like name — opening it as an ofstream
+  // must fail.
+  namespace fs = std::filesystem;
+  const auto dir = fs::temp_directory_path() / "light_config_test_save_dir";
+  fs::create_directory(dir);
+
+  TestConfig cfg;
+  cfg.name = "test";
+  auto r = light_config::save_to_json_file(cfg, dir.string(), false);
+
+  CHECK(!r.ok());
+  CHECK(r.code == light_config::ErrorCode::kFileWriteError);
+  CHECK(!r.message.empty());
+
+  fs::remove(dir);
 }
 
 // ============================================================================
@@ -383,8 +402,8 @@ TEST_CASE("Round-trip: JSON file save + load") {
   original.value = 55;
   original.flag = true;
 
-  bool ok = light_config::save_to_json_file(original, path, false);
-  CHECK(ok);
+  auto r_save = light_config::save_to_json_file(original, path, false);
+  CHECK(r_save.ok());
 
   TestConfig parsed;
   auto r = light_config::load_from_json_file(parsed, path);
