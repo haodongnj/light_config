@@ -42,29 +42,6 @@ if(ENABLE_CLANG_TIDY)
     endif()
 endif()
 
-# ---- clang-format targets (always available when clang-format is on PATH) ----
-find_program(CLANG_FORMAT_EXE NAMES clang-format)
-if(CLANG_FORMAT_EXE)
-    # Hand-written sources only — skip generated app_config.* / network.*
-    set(FORMAT_SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/light_config/light_config.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/light_config/json_loader.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/light_config/yaml_loader.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/light_config/load_result.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_basic.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/examples/example.cpp
-    )
-    add_custom_target(format
-        COMMAND ${CLANG_FORMAT_EXE} -i --style=file ${FORMAT_SOURCES}
-        COMMENT "Formatting hand-written C++ sources with clang-format"
-    )
-    add_custom_target(check-format
-        COMMAND ${CLANG_FORMAT_EXE} --dry-run --Werror --style=file ${FORMAT_SOURCES}
-        COMMENT "Checking clang-format compliance (dry-run)"
-    )
-else()
-    message(WARNING "clang-format not found — format / check-format targets unavailable")
-endif()
 
 # ---- Vendored yalantinglibs (third_party/yalantinglibs) ----
 set(YLT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/yalantinglibs")
