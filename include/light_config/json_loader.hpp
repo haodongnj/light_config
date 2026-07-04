@@ -5,6 +5,7 @@
 #include <ylt/struct_json/json_writer.h>
 
 #include <exception>
+#include <filesystem>
 #include <system_error>
 
 #include "light_config/load_result.hpp"

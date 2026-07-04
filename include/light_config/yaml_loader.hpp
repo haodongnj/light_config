@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <exception>
+#include <filesystem>
 #include <system_error>
 
 #include "light_config/load_result.hpp"
