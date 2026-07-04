@@ -194,6 +194,23 @@ TEST_CASE("save_to_json_file: write to directory path fails") {
   fs::remove(dir);
 }
 
+TEST_CASE("save_to_yaml_file: write to directory path fails") {
+  namespace fs = std::filesystem;
+  const auto dir =
+      fs::temp_directory_path() / "light_config_test_save_yaml_dir";
+  fs::create_directory(dir);
+
+  TestConfig cfg;
+  cfg.name = "yaml_test";
+  auto r = light_config::save_to_yaml_file(cfg, dir.string());
+
+  CHECK(!r.ok());
+  CHECK(r.code == light_config::ErrorCode::kFileWriteError);
+  CHECK(!r.message.empty());
+
+  fs::remove(dir);
+}
+
 // ============================================================================
 // Nested struct tests
 // ============================================================================
@@ -421,8 +438,8 @@ TEST_CASE("Round-trip: YAML file save + load") {
   original.value = 123;
   original.flag = false;
 
-  bool ok = light_config::save_to_yaml_file(original, path);
-  CHECK(ok);
+  auto r_save = light_config::save_to_yaml_file(original, path);
+  CHECK(r_save.ok());
 
   TestConfig parsed;
   auto r = light_config::load_from_yaml_file(parsed, path);

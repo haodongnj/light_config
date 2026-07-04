@@ -179,20 +179,25 @@ template <typename T> std::optional<std::string> to_yaml(const T &config) {
 /// \tparam T  A struct annotated with YLT_REFL.
 /// \param[in] config  The config struct to serialize.
 /// \param[in] path    Path to the output YAML file.
-/// \return  true on success, false on serialization or I/O failure.
+/// \return  LoadResult with code==kOk on success; kYamlSerializeError or
+///          kFileWriteError on failure.
 template <typename T>
-bool save_to_yaml_file(const T &config, const std::string &path) {
+LoadResult save_to_yaml_file(const T &config, const std::string &path) {
   auto yaml_opt = to_yaml(config);
   if (!yaml_opt.has_value()) {
-    return false;
+    return LoadResult::failure(ErrorCode::kYamlSerializeError,
+                               "failed to serialize config to YAML");
   }
   std::ofstream file(path, std::ios::binary | std::ios::trunc);
   if (!file) {
-    return false;
+    return LoadResult::failure(ErrorCode::kFileWriteError, path);
   }
   file << yaml_opt.value();
   file.close();
-  return file.good();
+  if (!file.good()) {
+    return LoadResult::failure(ErrorCode::kFileWriteError, path);
+  }
+  return LoadResult::success();
 }
 
 } // namespace light_config
