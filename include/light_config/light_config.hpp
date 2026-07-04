@@ -22,24 +22,25 @@ namespace light_config {
 ///
 /// `.yaml` / `.yml` → YAML; anything else → JSON.
 template <typename T>
-LoadResult load(T& config, const std::string& path, Format format = Format::Auto) {
-    if (format == Format::Yaml) {
-        return load_from_yaml_file(config, path);
-    }
-    if (format == Format::Json) {
-        return load_from_json_file(config, path);
-    }
-
-    // Format::Auto – detect from suffix.
-    auto dot = path.rfind('.');
-    if (dot != std::string::npos) {
-        auto ext = path.substr(dot);
-        if (ext == ".yaml" || ext == ".yml") {
-            return load_from_yaml_file(config, path);
-        }
-    }
-    // Default to JSON.
+LoadResult load(T &config, const std::string &path,
+                Format format = Format::Auto) {
+  if (format == Format::Yaml) {
+    return load_from_yaml_file(config, path);
+  }
+  if (format == Format::Json) {
     return load_from_json_file(config, path);
+  }
+
+  // Format::Auto – detect from suffix.
+  auto dot = path.rfind('.');
+  if (dot != std::string::npos) {
+    auto ext = path.substr(dot);
+    if (ext == ".yaml" || ext == ".yml") {
+      return load_from_yaml_file(config, path);
+    }
+  }
+  // Default to JSON.
+  return load_from_json_file(config, path);
 }
 
 /// Load with schema version enforcement.
@@ -50,25 +51,25 @@ LoadResult load(T& config, const std::string& path, Format format = Format::Auto
 /// preserves backward compatibility — existing callers that don't use
 /// schema versioning are unaffected.
 template <typename T>
-LoadResult load_versioned(T& config, const std::string& path,
+LoadResult load_versioned(T &config, const std::string &path,
                           std::string_view expected_schema_version,
                           Format format = Format::Auto) {
-    if (format == Format::Yaml) {
-        return load_from_yaml_file(config, path, expected_schema_version);
-    }
-    if (format == Format::Json) {
-        return load_from_json_file(config, path, expected_schema_version);
-    }
-
-    // Format::Auto
-    auto dot = path.rfind('.');
-    if (dot != std::string::npos) {
-        auto ext = path.substr(dot);
-        if (ext == ".yaml" || ext == ".yml") {
-            return load_from_yaml_file(config, path, expected_schema_version);
-        }
-    }
+  if (format == Format::Yaml) {
+    return load_from_yaml_file(config, path, expected_schema_version);
+  }
+  if (format == Format::Json) {
     return load_from_json_file(config, path, expected_schema_version);
+  }
+
+  // Format::Auto
+  auto dot = path.rfind('.');
+  if (dot != std::string::npos) {
+    auto ext = path.substr(dot);
+    if (ext == ".yaml" || ext == ".yml") {
+      return load_from_yaml_file(config, path, expected_schema_version);
+    }
+  }
+  return load_from_json_file(config, path, expected_schema_version);
 }
 
-}  // namespace light_config
+} // namespace light_config
