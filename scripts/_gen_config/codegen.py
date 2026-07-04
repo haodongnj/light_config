@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .config import GeneratorConfig
 from .cpp_gen import (
+    _make_enum_def,
     _make_header_preamble,
     _make_schema_version_constant,
     _make_source_preamble,
@@ -108,6 +109,7 @@ class CodeGenerator:
             self.model.root,
             use_default=True,
             violate=False,
+            enum_registry=self.model.enums,
         )
         vj = outdir / "valid_config.json"
         vy = outdir / "valid_config.yaml"
@@ -118,6 +120,13 @@ class CodeGenerator:
         return [vj, vy]
 
     # -- file group helpers -----------------------------------------------
+
+    def _enums_for_file(self, hpp_name: str) -> list:
+        """Return EnumDefs that should be emitted into *hpp_name*, in CSV order."""
+        return [
+            ed for ed in self.model.enums.values()
+            if ed.hpp_file == hpp_name
+        ]
 
     def _build_file_groups(self) -> OrderedDict[str, list[str]]:
         """Return {hpp_name: [group_names]} preserving topological order."""
@@ -135,6 +144,13 @@ class CodeGenerator:
                 nested_hpp = self.model.hpp_file_for(nested_type)
                 if nested_hpp != hpp_name:
                     includes.add(nested_hpp)
+            # Enum field cross-file dependencies
+            for row in self.model.group_regular.get(gname, []):
+                csv_type = row["type"].strip()
+                if csv_type in self.model.enums:
+                    ed = self.model.enums[csv_type]
+                    if ed.hpp_file != hpp_name:
+                        includes.add(ed.hpp_file)
         return sorted(includes)
 
     # -- CSV-driven generation --------------------------------------------
@@ -170,11 +186,24 @@ class CodeGenerator:
         has_int = any(
             self.model.group_has_int_types(g) for g in groups
         )
+        has_enums = any(
+            self._enums_for_file(hpp_name)
+        )
 
         lines: list[str] = [_make_header_preamble(has_opt, extra_includes,
-                                                  self.provenance, has_int)]
+                                                  self.provenance, has_int,
+                                                  has_enums=has_enums)]
         lines.extend(self._ns_open())
         lines.append("")
+
+        # Emit enums belonging to this file group
+        enum_defs = self._enums_for_file(hpp_name)
+        if enum_defs:
+            for ed in enum_defs:
+                lines.append(_make_enum_def(ed))
+                lines.append("")
+
+        enum_names = set(self.model.enums.keys())
         for gname in groups:
             struct_name = (
                 self._struct_name if gname == self.model.root else gname
@@ -183,6 +212,7 @@ class CodeGenerator:
                 struct_name,
                 self.model.group_regular[gname],
                 self.model.group_nested[gname],
+                enum_names=enum_names,
             )
             lines.append(body)
             lines.append("")
@@ -208,6 +238,7 @@ class CodeGenerator:
         lines: list[str] = [_make_source_preamble(hpp_name, self.provenance)]
         lines.extend(self._ns_open())
         lines.append("")
+        enum_names = set(self.model.enums.keys())
         for gname in groups:
             struct_name = (
                 self._struct_name if gname == self.model.root else gname
@@ -216,6 +247,7 @@ class CodeGenerator:
                 struct_name,
                 self.model.group_regular[gname],
                 self.model.group_nested[gname],
+                enum_names=enum_names,
             )
             lines.append(impl)
             lines.append("")
@@ -257,18 +289,28 @@ class CodeGenerator:
     # -- monolithic content builders --------------------------------------
 
     def _build_monolithic_header_content(self) -> str:
+        has_enums = bool(self.model.enums)
         lines: list[str] = [
             _make_header_preamble(self.model.has_optional,
                                   provenance=self.provenance,
-                                  has_int_types=self.model.has_int_types)
+                                  has_int_types=self.model.has_int_types,
+                                  has_enums=has_enums)
         ]
         lines.extend(self._ns_open())
         lines.append("")
+
+        # Emit all enums before structs
+        enum_names = set(self.model.enums.keys())
+        for ed in self.model.enums.values():
+            lines.append(_make_enum_def(ed))
+            lines.append("")
+
         for gname in self.model.ordered_groups:
             body, _ = _make_struct_body(
                 gname,
                 self.model.group_regular[gname],
                 self.model.group_nested[gname],
+                enum_names=enum_names,
             )
             lines.append(body)
             lines.append("")
@@ -287,11 +329,13 @@ class CodeGenerator:
                                                   self.provenance)]
         lines.extend(self._ns_open())
         lines.append("")
+        enum_names = set(self.model.enums.keys())
         for gname in self.model.ordered_groups:
             impl = _make_validate_impl(
                 gname,
                 self.model.group_regular[gname],
                 self.model.group_nested[gname],
+                enum_names=enum_names,
             )
             lines.append(impl)
             lines.append("")
@@ -306,18 +350,40 @@ class CodeGenerator:
         nested_types = [
             nt for _, nt, _ in self.model.group_nested.get(gname, [])
         ]
-        extra_includes = [_struct_to_hpp_name(nt) for nt in nested_types]
+        extra_includes: list[str] = [_struct_to_hpp_name(nt) for nt in nested_types]
+        # Add enum cross-file includes
+        hpp_name = self.model.hpp_file_for(gname)
+        for row in self.model.group_regular.get(gname, []):
+            csv_type = row["type"].strip()
+            if csv_type in self.model.enums:
+                ed = self.model.enums[csv_type]
+                if ed.hpp_file != hpp_name:
+                    extra_includes.append(ed.hpp_file)
         has_opt = self.model.group_has_optional(gname)
         has_int = self.model.group_has_int_types(gname)
+        has_enums = any(
+            self._enums_for_file(hpp_name)
+        )
 
         lines: list[str] = [_make_header_preamble(has_opt, extra_includes,
-                                                  self.provenance, has_int)]
+                                                  self.provenance, has_int,
+                                                  has_enums=has_enums)]
         lines.extend(self._ns_open())
         lines.append("")
+
+        # Emit enums belonging to this file
+        enum_defs = self._enums_for_file(hpp_name)
+        if enum_defs:
+            for ed in enum_defs:
+                lines.append(_make_enum_def(ed))
+                lines.append("")
+
+        enum_names = set(self.model.enums.keys())
         body, _ = _make_struct_body(
             struct_name,
             self.model.group_regular[gname],
             self.model.group_nested[gname],
+            enum_names=enum_names,
         )
         lines.append(body)
         lines.append("")
@@ -335,10 +401,12 @@ class CodeGenerator:
         lines: list[str] = [_make_source_preamble(hpp_name, self.provenance)]
         lines.extend(self._ns_open())
         lines.append("")
+        enum_names = set(self.model.enums.keys())
         impl = _make_validate_impl(
             struct_name,
             self.model.group_regular[gname],
             self.model.group_nested[gname],
+            enum_names=enum_names,
         )
         lines.append(impl)
         lines.append("")

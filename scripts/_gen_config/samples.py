@@ -14,6 +14,7 @@ def _build_sample_dict(
     root: str,
     use_default: bool,
     violate: bool,
+    enum_registry: dict | None = None,
 ) -> dict:
     """Recursively build a nested dict for JSON/YAML output."""
 
@@ -22,7 +23,8 @@ def _build_sample_dict(
         for row in group_regular.get(group_name, []):
             fname = row["field_name"].strip()
             d[fname] = _field_value(
-                row, use_default=use_default, violate=violate
+                row, use_default=use_default, violate=violate,
+                enum_registry=enum_registry,
             )
         for member_name, nested_type, _ in group_nested.get(group_name, []):
             d[member_name] = _build_for_group(nested_type)

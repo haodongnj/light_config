@@ -179,7 +179,8 @@ def _derive_filenames(config: GeneratorConfig, struct_name: str) -> tuple[str, s
 # ---------------------------------------------------------------------------
 
 
-def _parse_default(val: str, csv_type: str) -> object:
+def _parse_default(val: str, csv_type: str,
+                   enum_names: set[str] | None = None) -> object:
     val = val.strip()
     if csv_type in INT_TYPES:
         return int(val)
@@ -189,10 +190,14 @@ def _parse_default(val: str, csv_type: str) -> object:
         return val.lower() == "true"
     if csv_type == "string":
         return val.strip('"')
+    if enum_names and csv_type in enum_names:
+        # enum default — return the raw enumerator name for sample generation
+        return val
     return val
 
 
-def _example_value(csv_type: str) -> object:
+def _example_value(csv_type: str,
+                   enum_registry: dict | None = None) -> object:
     if csv_type in INT_TYPES:
         return 0
     if csv_type == "double":
@@ -207,6 +212,10 @@ def _example_value(csv_type: str) -> object:
         return [1, 2]
     if csv_type == "vector<double>":
         return [1.0, 2.0]
+    if enum_registry and csv_type in enum_registry:
+        # Return the first enumerator name
+        ed = enum_registry[csv_type]
+        return ed.enumerators[0][0] if ed.enumerators else ""
     return ""
 
 
@@ -222,22 +231,25 @@ def _violating_value(min_val: str, max_val: str, csv_type: str) -> object:
     return 0
 
 
-def _field_value(row: dict, use_default: bool = True, violate: bool = False) -> object:
+def _field_value(row: dict, use_default: bool = True, violate: bool = False,
+                 enum_registry: dict | None = None) -> object:
     csv_type = row["type"].strip()
     default = (row.get("default") or "").strip()
     is_opt = _is_optional(row)
 
     if use_default:
         if default:
-            return _parse_default(default, csv_type)
+            return _parse_default(default, csv_type,
+                                  enum_names=set(enum_registry.keys()) if enum_registry else None)
         if is_opt:
             return None
-        return _example_value(csv_type)
+        return _example_value(csv_type, enum_registry=enum_registry)
 
     min_val = (row.get("min") or "").strip()
     max_val = (row.get("max") or "").strip()
     if violate and (csv_type in INT_TYPES or csv_type == "double") and (min_val or max_val):
         return _violating_value(min_val, max_val, csv_type)
     if default:
-        return _parse_default(default, csv_type)
-    return _example_value(csv_type)
+        return _parse_default(default, csv_type,
+                              enum_names=set(enum_registry.keys()) if enum_registry else None)
+    return _example_value(csv_type, enum_registry=enum_registry)

@@ -5,6 +5,7 @@ C++ code generation — header and source string builders.
 from typing import Optional
 
 from .provenance import Provenance, _provenance_block
+from .schema import EnumDef
 from .types import (
     _csv_trace_block,
     _is_optional,
@@ -23,13 +24,17 @@ def _cpp_include(header: str) -> str:
     return f'#include "{header}"' if header else ""
 
 
-def _escape_default(val: str, cpp_type: str) -> str:
+def _escape_default(val: str, cpp_type: str,
+                    enum_names: set[str] | None = None) -> str:
     """Escape a CSV default value to its C++ literal form."""
     if val is None or val.strip() == "":
         return ""
     val = val.strip()
     if cpp_type == "std::string":
         return f'"{val}"'
+    if enum_names and cpp_type in enum_names:
+        # Qualify enum literal: "info" -> "LogLevel::info"
+        return f"{cpp_type}::{val}"
     return val
 
 
@@ -41,10 +46,12 @@ def _escape_default(val: str, cpp_type: str) -> str:
 def _make_header_preamble(has_optional: bool,
                           extra_includes: Optional[list[str]] = None,
                           provenance: Optional[Provenance] = None,
-                          has_int_types: bool = True) -> str:
+                          has_int_types: bool = True,
+                          has_enums: bool = False) -> str:
     """Return the full set of #include directives for a header file."""
     inc_opt = "#include <optional>" if has_optional else ""
     inc_cstdint = "#include <cstdint>" if has_int_types else ""
+    inc_array = "#include <array>" if has_enums else ""
     extra = "\n".join(f'#include "{inc}"' for inc in (extra_includes or []))
     parts = [
         "#pragma once",
@@ -64,15 +71,47 @@ def _make_header_preamble(has_optional: bool,
         parts.append(inc_cstdint)
     if inc_opt:
         parts.append(inc_opt)
+    if inc_array:
+        parts.append(inc_array)
     if extra:
         parts.append(extra)
     return "\n".join(parts)
+
+
+def _make_enum_def(ed: EnumDef) -> str:
+    """Generate enum class definition + enum_value<T> specialization.
+
+    Example output:
+        enum class LogLevel { debug, info, warn, error };
+        template <>
+        struct enum_value<LogLevel> {
+            constexpr static std::array<int, 4> value = {0, 1, 5, 6};
+        };
+    """
+    names = ", ".join(name for name, _ in ed.enumerators)
+    vals = ", ".join(str(val) for _, val in ed.enumerators)
+    n = len(ed.enumerators)
+
+    return (
+        f"/*\n"
+        f" * [{ed.hpp_file}:__enum__ row]\n"
+        f" *   enum_name   : {ed.name}\n"
+        f" *   enumerators : {n}\n"
+        f" *   hpp_file    : {ed.hpp_file}\n"
+        f" */\n"
+        f"enum class {ed.name} {{ {names} }};\n"
+        f"template <>\n"
+        f"struct enum_value<{ed.name}> {{\n"
+        f"    constexpr static std::array<int, {n}> value = {{{vals}}};\n"
+        f"}};"
+    )
 
 
 def _make_struct_body(
     struct_name: str,
     regular_rows: list[dict],
     nested_members: list[tuple[str, str, dict]],
+    enum_names: set[str] | None = None,
 ) -> tuple[str, bool]:
     """Generate struct definition body.  Returns (body_string, has_optional)."""
     lines: list[str] = []
@@ -87,7 +126,7 @@ def _make_struct_body(
         default_cell = (row.get("default") or "").strip()
         cpp_type = map_type(ftype_cell)
         is_opt = _is_optional(row)
-        default_literal = _escape_default(default_cell, cpp_type)
+        default_literal = _escape_default(default_cell, cpp_type, enum_names=enum_names)
 
         desc = (row.get("description") or "").strip()
         if desc:
@@ -178,6 +217,7 @@ def _make_validate_impl(
     struct_name: str,
     regular_rows: list[dict],
     nested_members: list[tuple[str, str, dict]],
+    enum_names: set[str] | None = None,
 ) -> str:
     """Generate validate_<StructName>() body with range checks and recursion."""
     checks: list[str] = []
@@ -189,6 +229,11 @@ def _make_validate_impl(
         default_cell = (row.get("default") or "").strip()
         min_val = (row.get("min") or "").strip()
         max_val = (row.get("max") or "").strip()
+        csv_type = row["type"].strip()
+
+        # Enum fields: skip range validation (yalantinglibs handles parse-time rejection)
+        if enum_names and csv_type in enum_names:
+            continue
 
         if not min_val and not max_val:
             continue
