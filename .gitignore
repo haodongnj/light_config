@@ -25,3 +25,6 @@ __pycache__/
 
 # Superpowers docs (local only)
 docs/superpowers/
+
+# Claude user-local settings
+.claude/settings.local.json

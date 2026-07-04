@@ -83,6 +83,7 @@ constexpr const char *error_code_message(ErrorCode code) noexcept {
   case ErrorCode::kUnrecognizedFormat:
     return "unrecognized file format";
   }
+  // Fallback for future error codes not yet added to the switch.
   return "unknown error";
 }
 
