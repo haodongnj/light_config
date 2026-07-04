@@ -55,6 +55,24 @@ YLT_REFL(OuterCfg, app_name, version, inner);
 
 // ---- Struct for schema version testing ----
 
+struct InnerVec {
+  std::optional<std::vector<std::string>> items;
+};
+YLT_REFL(InnerVec, items);
+
+struct OuterVec {
+  std::string name;
+  InnerVec inner;
+};
+YLT_REFL(OuterVec, name, inner);
+
+struct NestedOptionalVec {
+  std::string label;
+  std::optional<InnerVec> inner;
+  std::optional<std::vector<int>> values;
+};
+YLT_REFL(NestedOptionalVec, label, inner, values);
+
 struct VersionedConfig {
   std::string name;
   int value = 0;
@@ -211,9 +229,53 @@ TEST_CASE("save_to_yaml_file: write to directory path fails") {
   fs::remove(dir);
 }
 
-// ============================================================================
-// Nested struct tests
-// ============================================================================
+TEST_CASE("save_to_json_file: write to read-only directory") {
+  namespace fs = std::filesystem;
+  // Skip if running as root (root can write anywhere).
+  if (geteuid() == 0) {
+    MESSAGE("Skipping read-only-directory test (running as root)");
+    return;
+  }
+  const auto dir = fs::temp_directory_path() / "light_config_test_readonly_dir";
+  fs::create_directory(dir);
+  fs::permissions(dir, fs::perms::owner_read | fs::perms::owner_exec);
+
+  const auto path = dir / "should_fail.json";
+  TestConfig cfg;
+  cfg.name = "test_ro";
+  auto r = light_config::save_to_json_file(cfg, path.string(), false);
+
+  CHECK(!r.ok());
+  CHECK(r.code == light_config::ErrorCode::kFileWriteError);
+  CHECK(!r.message.empty());
+
+  fs::permissions(dir, fs::perms::owner_all);
+  fs::remove_all(dir);
+}
+
+TEST_CASE("save_to_yaml_file: write to read-only directory") {
+  namespace fs = std::filesystem;
+  if (geteuid() == 0) {
+    MESSAGE("Skipping read-only-directory test (running as root)");
+    return;
+  }
+  const auto dir =
+      fs::temp_directory_path() / "light_config_test_readonly_dir_yaml";
+  fs::create_directory(dir);
+  fs::permissions(dir, fs::perms::owner_read | fs::perms::owner_exec);
+
+  const auto path = dir / "should_fail.yaml";
+  TestConfig cfg;
+  cfg.name = "yaml_ro_test";
+  auto r = light_config::save_to_yaml_file(cfg, path.string());
+
+  CHECK(!r.ok());
+  CHECK(r.code == light_config::ErrorCode::kFileWriteError);
+  CHECK(!r.message.empty());
+
+  fs::permissions(dir, fs::perms::owner_all);
+  fs::remove_all(dir);
+}
 
 TEST_CASE("JSON nested struct all present") {
   OuterCfg cfg;
@@ -641,4 +703,93 @@ TEST_CASE("Schema version: load_versioned JSON match") {
       light_config::load_versioned(cfg, path, kVersionedConfigSchemaVersion);
   CHECK(r.ok());
   CHECK(cfg.value == 5);
+}
+
+// ============================================================================
+// Nested optional-with-vector tests
+// ============================================================================
+
+TEST_CASE("Nested optional vector: all fields present") {
+  OuterVec cfg;
+  auto r = light_config::load_from_json_string(cfg, R"({
+        "name": "outer",
+        "inner": {
+            "items": ["a", "b", "c"]
+        }
+    })");
+  CHECK(r.ok());
+  CHECK(cfg.name == "outer");
+  CHECK(cfg.inner.items.has_value());
+  CHECK(cfg.inner.items.value().size() == 3);
+  CHECK(cfg.inner.items.value()[0] == "a");
+  CHECK(cfg.inner.items.value()[1] == "b");
+  CHECK(cfg.inner.items.value()[2] == "c");
+  // present: name, inner, inner.items
+  CHECK(r.present_fields.size() == 3);
+  CHECK(r.absent_optionals.empty());
+}
+
+TEST_CASE("Nested optional vector: inner.items absent") {
+  OuterVec cfg;
+  auto r = light_config::load_from_json_string(cfg, R"({
+        "name": "outer",
+        "inner": {}
+    })");
+  CHECK(r.ok());
+  CHECK(cfg.name == "outer");
+  CHECK(!cfg.inner.items.has_value());
+  // absent: inner.items
+  CHECK(r.absent_optionals.size() == 1);
+  CHECK(r.absent_optionals[0] == "inner.items");
+}
+
+TEST_CASE("Nested optional vector: inner.items is empty array") {
+  OuterVec cfg;
+  auto r = light_config::load_from_json_string(cfg, R"({
+        "name": "outer",
+        "inner": {
+            "items": []
+        }
+    })");
+  CHECK(r.ok());
+  CHECK(cfg.inner.items.has_value());
+  CHECK(cfg.inner.items.value().empty());
+  CHECK(r.present_fields.size() == 3);
+  CHECK(r.absent_optionals.empty());
+}
+
+TEST_CASE("Nested optional vector: optional inner entirely absent") {
+  NestedOptionalVec cfg;
+  auto r = light_config::load_from_json_string(cfg, R"({
+        "label": "test",
+        "values": [1, 2, 3]
+    })");
+  CHECK(r.ok());
+  CHECK(cfg.label == "test");
+  CHECK(!cfg.inner.has_value());
+  CHECK(cfg.values.has_value());
+  CHECK(cfg.values.value().size() == 3);
+  // absent: inner (the optional<InnerVec> itself)
+  bool has_inner_absent = false;
+  for (auto &name : r.absent_optionals) {
+    if (name == "inner")
+      has_inner_absent = true;
+  }
+  CHECK(has_inner_absent);
+  // present: label, values
+  CHECK(r.present_fields.size() == 2);
+}
+
+TEST_CASE("Nested optional vector: all absent") {
+  NestedOptionalVec cfg;
+  auto r = light_config::load_from_json_string(cfg, R"({
+        "label": "bare"
+    })");
+  CHECK(r.ok());
+  CHECK(cfg.label == "bare");
+  CHECK(!cfg.inner.has_value());
+  CHECK(!cfg.values.has_value());
+  // absent: inner, values
+  CHECK(r.absent_optionals.size() == 2);
+  CHECK(r.present_fields.size() == 1);
 }

@@ -133,6 +133,11 @@ template <typename T> std::optional<std::string> to_yaml(const T &config) {
     iguana::to_yaml(config, ss, 0);
     return ss;
   } catch (const std::exception &) {
+    // Defensive: iguana serialization does not throw for well-formed
+    // YLT_REFL-annotated structs. This catch exists to uphold the API
+    // contract (never throw from a load/save function) against
+    // hypothetical edge cases (bad_alloc, corrupted internal state).
+    // This path is intentionally uncovered by tests.
     return std::nullopt;
   }
 }
