@@ -795,3 +795,70 @@ TEST_CASE("Nested optional vector: all absent") {
     CHECK(r.absent_optionals.size() == 2);
     CHECK(r.present_fields.size() == 1);
 }
+
+// ============================================================================
+// Enum Tests
+// ============================================================================
+
+// ---- Enum types for testing ----
+
+enum class TestPriority { low, normal, high, critical };
+template <>
+struct iguana::enum_value<TestPriority> {
+    constexpr static std::array<int, 4> value = {0, 1, 2, 3};
+};
+
+struct EnumConfig {
+    TestPriority priority = TestPriority::normal;
+    int retries = 3;
+};
+YLT_REFL(EnumConfig, priority, retries);
+
+TEST_CASE("enums: JSON load with valid enum value") {
+    EnumConfig cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({"priority": "high", "retries": 5})");
+    CHECK(r.ok());
+    CHECK(cfg.priority == TestPriority::high);
+    CHECK(cfg.retries == 5);
+    CHECK(r.present_fields.size() == 2);
+}
+
+TEST_CASE("enums: JSON load with invalid enum value fails") {
+    EnumConfig cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({"priority": "unknown", "retries": 5})");
+    CHECK(!r.ok());
+}
+
+TEST_CASE("enums: YAML load with valid enum value") {
+    EnumConfig cfg;
+    auto r = light_config::load_from_yaml_string(cfg, "priority: critical\nretries: 10");
+    CHECK(r.ok());
+    CHECK(cfg.priority == TestPriority::critical);
+    CHECK(cfg.retries == 10);
+}
+
+TEST_CASE("enums: JSON round-trip preserves enum as string") {
+    EnumConfig cfg;
+    cfg.priority = TestPriority::low;
+    cfg.retries = 1;
+    auto json = light_config::to_json(cfg).value();
+    CHECK(json.find("\"low\"") != std::string::npos);
+    EnumConfig cfg2;
+    auto r = light_config::load_from_json_string(cfg2, json);
+    CHECK(r.ok());
+    CHECK(cfg2.priority == TestPriority::low);
+    CHECK(cfg2.retries == 1);
+}
+
+TEST_CASE("enums: YAML round-trip preserves enum as string") {
+    EnumConfig cfg;
+    cfg.priority = TestPriority::critical;
+    cfg.retries = 7;
+    auto yaml = light_config::to_yaml(cfg).value();
+    CHECK(yaml.find("critical") != std::string::npos);
+    EnumConfig cfg2;
+    auto r = light_config::load_from_yaml_string(cfg2, yaml);
+    CHECK(r.ok());
+    CHECK(cfg2.priority == TestPriority::critical);
+    CHECK(cfg2.retries == 7);
+}
