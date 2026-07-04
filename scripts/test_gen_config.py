@@ -366,8 +366,8 @@ def test_enum_def_parsing_basic() -> None:
         "level,MyConfig,LogLevel,info,,,false,Log verbosity\n"
     )
     _, hpp = _generate(csv_text)
-    check("enum class LogLevel { debug, info, warn, error };" in hpp,
-          "enum class emitted with auto-sequential values")
+    check("enum class LogLevel { debug = 0, info = 1, warn = 2, error = 3 };" in hpp,
+          "enum class emitted with sequential = val syntax")
     check("std::array<int, 4> value = {0, 1, 2, 3}" in hpp,
           "enum_value specialization with sequential values")
 
@@ -381,8 +381,8 @@ def test_enum_def_parsing_explicit() -> None:
         "p,MyConfig,Protocol,http,,,false,Protocol\n"
     )
     _, hpp = _generate(csv_text)
-    check("enum class Protocol { http, https, ssh };" in hpp,
-          "enum class emitted with explicit values")
+    check("enum class Protocol { http = 80, https = 443, ssh = 22 };" in hpp,
+          "enum class emitted with explicit = val syntax")
     check("std::array<int, 3> value = {80, 443, 22}" in hpp,
           "enum_value specialization with explicit values")
 
@@ -396,8 +396,8 @@ def test_enum_def_parsing_mixed() -> None:
     )
     _, hpp = _generate(csv_text)
     # a=0 (auto), b=5 (explicit), c=1 (next available after 0)
-    check("enum class Mixed { a, b, c };" in hpp,
-          "enum class emitted with mixed values")
+    check("enum class Mixed { a = 0, b = 5, c = 1 };" in hpp,
+          "enum class emitted with mixed = val syntax")
     check("std::array<int, 3> value = {0, 5, 1}" in hpp,
           "enum_value specialization with mixed values (auto-cursor gap fill)")
 
@@ -577,6 +577,18 @@ def test_sample_json_uses_enum_string() -> None:
           "enum value is NOT integer 0")
 
 
+def test_enum_min_max_rejected() -> None:
+    """Enum fields with min or max constraint are rejected."""
+    for col_name in ("min", "max"):
+        csv_text = (
+            "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+            "hpp_file=network.hpp\n"
+            "field_name,group,type,default,min,max,optional,description\n"
+            f"level,MyConfig,LogLevel,info,{'1' if col_name == 'min' else ''},{'1' if col_name == 'max' else ''},false,Log level\n"
+        )
+        check(_generate_exits(csv_text),
+              f"enum field with '{col_name}' constraint is rejected")
+
 def main() -> int:
     test_type_mapping()
     test_unknown_type_rejected()
@@ -613,6 +625,7 @@ def main() -> int:
     test_enum_value_specialization_emitted()
     test_enum_validation_skipped()
     test_sample_json_uses_enum_string()
+    test_enum_min_max_rejected()
     if _FAIL:
         print(f"\n{_FAIL} self-test(s) failed.")
         return 1
@@ -622,3 +635,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

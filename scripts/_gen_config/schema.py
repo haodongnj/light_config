@@ -320,6 +320,18 @@ class SchemaModel:
                 if csv_type in INT_TYPES:
                     self._validate_int_literals(row, csv_type)
 
+                # Reject min/max on enum fields — yalantinglibs handles
+                # parse-time rejection of invalid enumerator strings,
+                # and range constraints on enums have no meaning.
+                if csv_type in self.enums:
+                    for col in ("min", "max"):
+                        if (row.get(col) or "").strip():
+                            where = _row_location(row)
+                            raise GeneratorError(
+                                f"{where} field '{row["field_name"].strip()}' "
+                                f"has '{col}' constraint on enum type "
+                                f"'{csv_type}' — min/max are not supported on enums."
+                            )
     def _validate_int_literals(self, row: dict, csv_type: str) -> None:
         """Reject default/min/max literals that don't fit the integer width."""
         lo, hi = _int_range(csv_type)

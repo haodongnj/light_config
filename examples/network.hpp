@@ -7,7 +7,7 @@
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
 ///   csv_md5        : a75c3b990d9070d6b5e7a3dd8ec5bb60
-///   generated_at   : 2026-07-04T10:51:54.044866+00:00
+///   generated_at   : 2026-07-04T11:18:33.638539+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -25,7 +25,7 @@
  *   enumerators : 4
  *   hpp_file    : network.hpp
  */
-enum class LogLevel { debug, info, warn, error };
+enum class LogLevel { debug = 0, info = 1, warn = 2, error = 3 };
 
 template <>
 struct iguana::enum_value<LogLevel> {

@@ -84,7 +84,7 @@ def _make_enum_def(ed: EnumDef) -> str:
     The enum_value<T> specialization is emitted separately by
     _make_enum_specialization, outside the user's namespace.
     """
-    names = ", ".join(name for name, _ in ed.enumerators)
+    items = ", ".join(f"{name} = {val}" for name, val in ed.enumerators)
     n = len(ed.enumerators)
 
     return (
@@ -94,7 +94,7 @@ def _make_enum_def(ed: EnumDef) -> str:
         f" *   enumerators : {n}\n"
         f" *   hpp_file    : {ed.hpp_file}\n"
         f" */\n"
-        f"enum class {ed.name} {{ {names} }};"
+        f"enum class {ed.name} {{ {items} }};"
     )
 
 

@@ -796,6 +796,8 @@ TEST_CASE("Nested optional vector: all absent") {
     CHECK(r.present_fields.size() == 1);
 }
 
+// ---- Structs for optional enum + schema-version enum tests ----
+
 // ============================================================================
 // Enum Tests
 // ============================================================================
@@ -812,6 +814,19 @@ struct EnumConfig {
     TestPriority priority = TestPriority::normal;
     int retries = 3;
 };
+
+struct OptEnumConfig {
+    std::optional<TestPriority> priority;
+    int value = 0;
+};
+YLT_REFL(OptEnumConfig, priority, value);
+
+struct VersionedEnumConfig {
+    TestPriority priority = TestPriority::normal;
+    int value = 0;
+};
+YLT_REFL(VersionedEnumConfig, priority, value);
+constexpr std::string_view kVersionedEnumSchemaVersion{"1.0.0"};
 YLT_REFL(EnumConfig, priority, retries);
 
 TEST_CASE("enums: JSON load with valid enum value") {
@@ -861,4 +876,47 @@ TEST_CASE("enums: YAML round-trip preserves enum as string") {
     CHECK(r.ok());
     CHECK(cfg2.priority == TestPriority::critical);
     CHECK(cfg2.retries == 7);
+}
+
+TEST_CASE("enums: optional enum field present and absent") {
+    // Present
+    {
+        OptEnumConfig cfg;
+        auto r = light_config::load_from_json_string(cfg, R"({"priority": "high", "value": 5})");
+        CHECK(r.ok());
+        CHECK(cfg.priority.has_value());
+        CHECK(cfg.priority.value() == TestPriority::high);
+        CHECK(cfg.value == 5);
+    }
+    // Absent
+    {
+        OptEnumConfig cfg;
+        auto r = light_config::load_from_json_string(cfg, R"({"value": 10})");
+        CHECK(r.ok());
+        CHECK(!cfg.priority.has_value());
+        CHECK(cfg.value == 10);
+        CHECK(r.absent_optionals.size() == 1);
+        CHECK(r.absent_optionals[0] == "priority");
+    }
+}
+
+TEST_CASE("enums: schema version check works with enum fields") {
+    // Schema match
+    {
+        VersionedEnumConfig cfg;
+        auto r = light_config::load_from_json_string(
+            cfg, R"({"$schema": "1.0.0", "priority": "low", "value": 1})",
+            kVersionedEnumSchemaVersion);
+        CHECK(r.ok());
+        CHECK(cfg.priority == TestPriority::low);
+    }
+    // Schema mismatch
+    {
+        VersionedEnumConfig cfg;
+        auto r = light_config::load_from_json_string(
+            cfg, R"({"$schema": "2.0.0", "priority": "critical", "value": 2})",
+            kVersionedEnumSchemaVersion);
+        CHECK(!r.ok());
+        CHECK(r.code == light_config::ErrorCode::kSchemaMismatch);
+    }
 }
