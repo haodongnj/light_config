@@ -474,7 +474,9 @@ TEST_CASE("Round-trip: YAML serialization + re-parse") {
 }
 
 TEST_CASE("Round-trip: JSON file save + load") {
-  const std::string path = "/tmp/light_config_test_rt.json";
+  const std::string path =
+      (std::filesystem::temp_directory_path() / "light_config_test_rt.json")
+          .string();
 
   TestConfig original;
   original.name = "file_rt";
@@ -493,7 +495,9 @@ TEST_CASE("Round-trip: JSON file save + load") {
 }
 
 TEST_CASE("Round-trip: YAML file save + load") {
-  const std::string path = "/tmp/light_config_test_rt.yaml";
+  const std::string path =
+      (std::filesystem::temp_directory_path() / "light_config_test_rt.yaml")
+          .string();
 
   TestConfig original;
   original.name = "yaml_file_rt";
@@ -552,7 +556,9 @@ TEST_CASE("YAML empty document") {
 // ============================================================================
 
 TEST_CASE("Auto-detect JSON (.json)") {
-  const std::string path = "/tmp/light_config_test_auto.json";
+  const std::string path =
+      (std::filesystem::temp_directory_path() / "light_config_test_auto.json")
+          .string();
   {
     std::ofstream f(path);
     f << R"({"name": "auto", "value": 1, "flag": false})";
@@ -564,7 +570,9 @@ TEST_CASE("Auto-detect JSON (.json)") {
 }
 
 TEST_CASE("Auto-detect YAML (.yaml)") {
-  const std::string path = "/tmp/light_config_test_auto.yaml";
+  const std::string path =
+      (std::filesystem::temp_directory_path() / "light_config_test_auto.yaml")
+          .string();
   {
     std::ofstream f(path);
     f << "name: auto_yaml\nvalue: 2\nflag: true\n";
@@ -576,7 +584,9 @@ TEST_CASE("Auto-detect YAML (.yaml)") {
 }
 
 TEST_CASE("Auto-detect YAML (.yml)") {
-  const std::string path = "/tmp/light_config_test_auto.yml";
+  const std::string path =
+      (std::filesystem::temp_directory_path() / "light_config_test_auto.yml")
+          .string();
   {
     std::ofstream f(path);
     f << "name: auto_yml\nvalue: 3\nflag: false\n";
@@ -588,7 +598,9 @@ TEST_CASE("Auto-detect YAML (.yml)") {
 }
 
 TEST_CASE("Auto-detect no extension -> JSON") {
-  const std::string path = "/tmp/light_config_test_auto_noext";
+  const std::string path =
+      (std::filesystem::temp_directory_path() / "light_config_test_auto_noext")
+          .string();
   {
     std::ofstream f(path);
     f << R"({"name": "noext", "value": 4, "flag": true})";
@@ -693,7 +705,9 @@ value: 7
 }
 
 TEST_CASE("Schema version: load_versioned JSON match") {
-  const std::string path = "/tmp/light_config_test_schema.json";
+  const std::string path =
+      (std::filesystem::temp_directory_path() / "light_config_test_schema.json")
+          .string();
   {
     std::ofstream f(path);
     f << R"({"$schema": "2.0.0", "name": "file_test", "value": 5})";
