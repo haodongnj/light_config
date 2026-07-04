@@ -122,6 +122,7 @@ class SchemaModel:
         model._resolve_hpp_files()
         model._classify_groups()
         model._validate_types()
+        model._validate_enum_references()
         model._detect_root()
         model._build_order()
         model._detect_optional()
@@ -278,6 +279,13 @@ class SchemaModel:
             for row in grows:
                 csv_type = row["type"].strip()
                 is_opt = _is_optional(row)
+                # Reject type that is both an enum name and a group name
+                if csv_type in self.enums and csv_type in group_names:
+                    where = _row_location(row)
+                    raise GeneratorError(
+                        f"{where} type '{csv_type}' is both an enum and "
+                        f"a struct group — names must be unique."
+                    )
                 if csv_type in group_names:
                     if is_opt:
                         where = _row_location(row)
@@ -302,7 +310,7 @@ class SchemaModel:
         for gname in self.ordered_groups_actual():
             for row in self.group_regular[gname]:
                 csv_type = row["type"].strip()
-                if csv_type not in _BUILTIN_TYPES:
+                if csv_type not in _BUILTIN_TYPES and csv_type not in self.enums:
                     raise GeneratorError(
                         f"[{row.get('_csv_name','')}:{row.get('_csv_line','')}] "
                         f"field '{row['field_name'].strip()}' has unknown type "
@@ -333,6 +341,27 @@ class SchemaModel:
                     f"{col} {v} out of range for type '{csv_type}' "
                     f"[{lo}, {hi}]."
                 )
+
+    def _validate_enum_references(self) -> None:
+        """Ensure every enum referenced by a field exists in self.enums,
+        and that enum defaults are valid enumerator names."""
+        for gname in self.ordered_groups_actual():
+            for row in self.group_regular[gname]:
+                csv_type = row["type"].strip()
+                if csv_type not in self.enums:
+                    continue
+                ed = self.enums[csv_type]
+                default = (row.get("default") or "").strip()
+                if default:
+                    enames = {name for name, _ in ed.enumerators}
+                    if default not in enames:
+                        where = _row_location(row)
+                        raise GeneratorError(
+                            f"{where} field '{row['field_name'].strip()}' "
+                            f"default '{default}' is not a valid enumerator "
+                            f"of '{csv_type}' (valid: "
+                            f"{', '.join(sorted(enames))})."
+                        )
 
     def ordered_groups_actual(self) -> list[str]:
         """All groups in insertion order (used before root detection)."""
