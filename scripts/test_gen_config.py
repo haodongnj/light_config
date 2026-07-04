@@ -577,6 +577,48 @@ def test_sample_json_uses_enum_string() -> None:
           "enum value is NOT integer 0")
 
 
+def test_enum_namespace_in_def_emits_wrapper() -> None:
+    """Enum with namespace=N -> enum class wrapped in namespace N."""
+    csv_text = (
+        "__enum__,enum_name=Color,enum_def=red|green|blue,"
+        "hpp_file=colors.hpp,namespace=graphics\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "c,MyConfig,Color,red,,,false,Color field\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("namespace graphics {" in hpp,
+          "per-enum namespace open emitted for enum def")
+    check("enum class Color { red = 0, green = 1, blue = 2 };" in hpp,
+          "enum class inside per-enum namespace")
+    check("} // namespace graphics" in hpp,
+          "per-enum namespace close emitted")
+
+
+def test_enum_namespace_in_specialization_qualifies_type() -> None:
+    """enum_value specialization uses enum's own namespace for qualification."""
+    csv_text = (
+        "__enum__,enum_name=Color,enum_def=red|green|blue,"
+        "hpp_file=colors.hpp,namespace=graphics\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "c,MyConfig,Color,red,,,false,Color field\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("iguana::enum_value<graphics::Color>" in hpp,
+          "enum_value specialization uses per-enum namespace for qualified type")
+
+
+def test_enum_no_namespace_defaults_to_global_scope() -> None:
+    """Back-compat: no namespace= on enum -> file-scope definition, no wrapper."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info,hpp_file=x.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,info,,,false,Log level\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("namespace LogLevel" not in hpp,
+          "no spurious per-enum namespace wrapper when namespace= absent")
+
+
 def test_enum_min_max_rejected() -> None:
     """Enum fields with min or max constraint are rejected."""
     for col_name in ("min", "max"):
@@ -625,6 +667,9 @@ def main() -> int:
     test_enum_value_specialization_emitted()
     test_enum_validation_skipped()
     test_sample_json_uses_enum_string()
+    test_enum_namespace_in_def_emits_wrapper()
+    test_enum_namespace_in_specialization_qualifies_type()
+    test_enum_no_namespace_defaults_to_global_scope()
     test_enum_min_max_rejected()
     if _FAIL:
         print(f"\n{_FAIL} self-test(s) failed.")

@@ -79,7 +79,7 @@ def _make_header_preamble(has_optional: bool,
 
 
 def _make_enum_def(ed: EnumDef) -> str:
-    """Generate enum class definition (inside namespace).
+    """Generate enum class definition (at file scope or inside its own namespace).
 
     The enum_value<T> specialization is emitted separately by
     _make_enum_specialization, outside the user's namespace.
@@ -87,25 +87,38 @@ def _make_enum_def(ed: EnumDef) -> str:
     items = ", ".join(f"{name} = {val}" for name, val in ed.enumerators)
     n = len(ed.enumerators)
 
-    return (
+    trace = (
         f"/*\n"
         f" * [{ed.hpp_file}:__enum__ row]\n"
         f" *   enum_name   : {ed.name}\n"
         f" *   enumerators : {n}\n"
         f" *   hpp_file    : {ed.hpp_file}\n"
-        f" */\n"
-        f"enum class {ed.name} {{ {items} }};"
     )
+    if ed.namespace:
+        trace += f" *   namespace   : {ed.namespace}\n"
+    trace += f" */\n"
+    trace += f"enum class {ed.name} {{ {items} }};"
+
+    if ed.namespace:
+        return (
+            f"namespace {ed.namespace} {{\n"
+            f"{trace}\n"
+            f"}} // namespace {ed.namespace}"
+        )
+    return trace
 
 
-def _make_enum_specialization(ed: EnumDef, namespace: str = "") -> str:
+def _make_enum_specialization(ed: EnumDef, user_namespace: str = "") -> str:
     """Generate iguana::enum_value<T> specialization (at global/namespace scope).
 
-    When *namespace* is non-empty the enum type is qualified (e.g. app::LogLevel).
+    Uses the enum's own namespace if set, otherwise falls back to *user_namespace*
+    (the struct-level namespace from __metadata__).  The specialization is always
+    emitted at file scope — it lives outside any enclosing namespace block.
     """
     vals = ", ".join(str(val) for _, val in ed.enumerators)
     n = len(ed.enumerators)
-    qualified = f"{namespace}::{ed.name}" if namespace else ed.name
+    ns = ed.namespace or user_namespace
+    qualified = f"{ns}::{ed.name}" if ns else ed.name
 
     return (
         f"template <>\n"

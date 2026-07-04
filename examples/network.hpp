@@ -6,8 +6,8 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : a75c3b990d9070d6b5e7a3dd8ec5bb60
-///   generated_at   : 2026-07-04T11:18:33.638539+00:00
+///   csv_md5        : 5a649f642620b504f2ac316957b7327a
+///   generated_at   : 2026-07-04T14:38:19.799427+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -27,16 +27,29 @@
  */
 enum class LogLevel { debug = 0, info = 1, warn = 2, error = 3 };
 
+/*
+ * [network.hpp:__enum__ row]
+ *   enum_name   : Protocol
+ *   enumerators : 3
+ *   hpp_file    : network.hpp
+ */
+enum class Protocol { http = 80, https = 443, ssh = 22 };
+
 template <>
 struct iguana::enum_value<LogLevel> {
     constexpr static std::array<int, 4> value = {0, 1, 2, 3};
+};
+
+template <>
+struct iguana::enum_value<Protocol> {
+    constexpr static std::array<int, 3> value = {80, 443, 22};
 };
 
 namespace app {
 
 struct ServerConfig {
     /*
-     * [sample_config.csv:10]
+     * [sample_config.csv:13]
      *   field_name  : host
      *   group       : ServerConfig
      *   type        : string
@@ -50,7 +63,7 @@ struct ServerConfig {
     // IP address to bind
     std::string host = "0.0.0.0";
     /*
-     * [sample_config.csv:11]
+     * [sample_config.csv:14]
      *   field_name  : port
      *   group       : ServerConfig
      *   type        : int
@@ -64,7 +77,7 @@ struct ServerConfig {
     // Listening port
     int32_t port = 8080;
     /*
-     * [sample_config.csv:12]
+     * [sample_config.csv:15]
      *   field_name  : backlog
      *   group       : ServerConfig
      *   type        : int
@@ -82,7 +95,21 @@ YLT_REFL(ServerConfig, host, port, backlog);
 
 struct ConnectionConfig {
     /*
-     * [sample_config.csv:13]
+     * [sample_config.csv:16]
+     *   field_name  : protocol
+     *   group       : ConnectionConfig
+     *   type        : Protocol
+     *   default     : http
+     *   min         : 
+     *   max         : 
+     *   optional    : false
+     *   description : Network protocol
+     *   hpp_file    : network.hpp
+     */
+    // Network protocol
+    Protocol protocol = Protocol::http;
+    /*
+     * [sample_config.csv:17]
      *   field_name  : max_connections
      *   group       : ConnectionConfig
      *   type        : int
@@ -96,7 +123,7 @@ struct ConnectionConfig {
     // Max concurrent connections
     int32_t max_connections = 1000;
     /*
-     * [sample_config.csv:14]
+     * [sample_config.csv:18]
      *   field_name  : timeout_sec
      *   group       : ConnectionConfig
      *   type        : double
@@ -110,7 +137,7 @@ struct ConnectionConfig {
     // Connection timeout in seconds
     double timeout_sec = 30.0;
     /*
-     * [sample_config.csv:15]
+     * [sample_config.csv:19]
      *   field_name  : cert_file
      *   group       : ConnectionConfig
      *   type        : string
@@ -124,7 +151,7 @@ struct ConnectionConfig {
     // TLS certificate file path (optional)
     std::optional<std::string> cert_file;
     /*
-     * [sample_config.csv:16]
+     * [sample_config.csv:20]
      *   field_name  : retry_times
      *   group       : ConnectionConfig
      *   type        : int
@@ -138,7 +165,7 @@ struct ConnectionConfig {
     // Connection retry count
     int32_t retry_times = 3;
     /*
-     * [sample_config.csv:17]
+     * [sample_config.csv:21]
      *   field_name  : allowed_ciphers
      *   group       : ConnectionConfig
      *   type        : vector<string>
@@ -152,7 +179,8 @@ struct ConnectionConfig {
     // Allowed TLS cipher names (optional)
     std::optional<std::vector<std::string>> allowed_ciphers;
 };
-YLT_REFL(ConnectionConfig, max_connections, timeout_sec, cert_file, retry_times, allowed_ciphers);
+YLT_REFL(ConnectionConfig, protocol, max_connections, timeout_sec, cert_file, retry_times,
+         allowed_ciphers);
 
 /// Schema version declared in the CSV __metadata__ row.
 constexpr std::string_view kServerConfigSchemaVersion{"1.0.0"};

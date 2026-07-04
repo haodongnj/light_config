@@ -1,15 +1,19 @@
 __metadata__,namespace=app,schema_version=1.0.0,generator=light_config
 __enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,hpp_file=network.hpp
+__enum__,enum_name=Protocol,enum_def=http=80|https=443|ssh=22,hpp_file=network.hpp
+__enum__,enum_name=Color,enum_def=red|green|blue,hpp_file=app_config.hpp,namespace=app
 field_name,group,type,default,min,max,optional,description,hpp_file
 debug,AppConfig,bool,false,,,false,Enable debug logging,app_config.hpp
 log_file,AppConfig,string,/var/log/app.log,,,false,Log file path,app_config.hpp
 log_level,AppConfig,LogLevel,info,,,false,Log verbosity level,app_config.hpp
+ui_theme,AppConfig,Color,red,,,false,UI color theme,app_config.hpp
 allowed_origins,AppConfig,vector<string>,,,,true,"Allowed CORS origins (optional)",app_config.hpp
 server,AppConfig,ServerConfig,,,,false,Backend server configuration,app_config.hpp
 connection,AppConfig,ConnectionConfig,,,,false,Connection settings,app_config.hpp
 host,ServerConfig,string,"0.0.0.0",,,false,IP address to bind,network.hpp
 port,ServerConfig,int,8080,1024,65535,false,Listening port,network.hpp
 backlog,ServerConfig,int,128,1,4096,false,TCP listen backlog,network.hpp
+protocol,ConnectionConfig,Protocol,http,,,false,Network protocol,network.hpp
 max_connections,ConnectionConfig,int,1000,1,100000,false,Max concurrent connections,network.hpp
 timeout_sec,ConnectionConfig,double,30.0,0.5,86400,false,Connection timeout in seconds,network.hpp
 cert_file,ConnectionConfig,string,,,,true,"TLS certificate file path (optional)",network.hpp

@@ -6,8 +6,8 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : a75c3b990d9070d6b5e7a3dd8ec5bb60
-///   generated_at   : 2026-07-04T11:18:33.638539+00:00
+///   csv_md5        : 5a649f642620b504f2ac316957b7327a
+///   generated_at   : 2026-07-04T14:38:19.799427+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -19,11 +19,28 @@
 #include <string>
 #include <vector>
 
+#include <array>
+namespace app {
+/*
+ * [app_config.hpp:__enum__ row]
+ *   enum_name   : Color
+ *   enumerators : 3
+ *   hpp_file    : app_config.hpp
+ *   namespace   : app
+ */
+enum class Color { red = 0, green = 1, blue = 2 };
+}  // namespace app
+
+template <>
+struct iguana::enum_value<app::Color> {
+    constexpr static std::array<int, 3> value = {0, 1, 2};
+};
+
 namespace app {
 
 struct AppConfig {
     /*
-     * [sample_config.csv:4]
+     * [sample_config.csv:6]
      *   field_name  : debug
      *   group       : AppConfig
      *   type        : bool
@@ -37,7 +54,7 @@ struct AppConfig {
     // Enable debug logging
     bool debug = false;
     /*
-     * [sample_config.csv:5]
+     * [sample_config.csv:7]
      *   field_name  : log_file
      *   group       : AppConfig
      *   type        : string
@@ -51,7 +68,7 @@ struct AppConfig {
     // Log file path
     std::string log_file = "/var/log/app.log";
     /*
-     * [sample_config.csv:6]
+     * [sample_config.csv:8]
      *   field_name  : log_level
      *   group       : AppConfig
      *   type        : LogLevel
@@ -65,7 +82,21 @@ struct AppConfig {
     // Log verbosity level
     LogLevel log_level = LogLevel::info;
     /*
-     * [sample_config.csv:7]
+     * [sample_config.csv:9]
+     *   field_name  : ui_theme
+     *   group       : AppConfig
+     *   type        : Color
+     *   default     : red
+     *   min         : 
+     *   max         : 
+     *   optional    : false
+     *   description : UI color theme
+     *   hpp_file    : app_config.hpp
+     */
+    // UI color theme
+    Color ui_theme = Color::red;
+    /*
+     * [sample_config.csv:10]
      *   field_name  : allowed_origins
      *   group       : AppConfig
      *   type        : vector<string>
@@ -79,7 +110,7 @@ struct AppConfig {
     // Allowed CORS origins (optional)
     std::optional<std::vector<std::string>> allowed_origins;
     /*
-     * [sample_config.csv:8]
+     * [sample_config.csv:11]
      *   field_name  : server
      *   group       : AppConfig
      *   type        : ServerConfig
@@ -92,7 +123,7 @@ struct AppConfig {
      */
     ServerConfig server;
     /*
-     * [sample_config.csv:9]
+     * [sample_config.csv:12]
      *   field_name  : connection
      *   group       : AppConfig
      *   type        : ConnectionConfig
@@ -105,7 +136,7 @@ struct AppConfig {
      */
     ConnectionConfig connection;
 };
-YLT_REFL(AppConfig, debug, log_file, log_level, allowed_origins, server, connection);
+YLT_REFL(AppConfig, debug, log_file, log_level, ui_theme, allowed_origins, server, connection);
 
 /// Schema version declared in the CSV __metadata__ row.
 constexpr std::string_view kAppConfigSchemaVersion{"1.0.0"};

@@ -4,8 +4,8 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : a75c3b990d9070d6b5e7a3dd8ec5bb60
-///   generated_at   : 2026-07-04T11:18:33.638539+00:00
+///   csv_md5        : 5a649f642620b504f2ac316957b7327a
+///   generated_at   : 2026-07-04T14:38:19.799427+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -18,7 +18,7 @@ namespace app {
 light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
     std::vector<std::string> errors;
     /*
-     * [sample_config.csv:11]
+     * [sample_config.csv:14]
      *   field_name  : port
      *   group       : ServerConfig
      *   type        : int
@@ -35,7 +35,7 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
         errors.push_back(oss.str());
     }
     /*
-     * [sample_config.csv:12]
+     * [sample_config.csv:15]
      *   field_name  : backlog
      *   group       : ServerConfig
      *   type        : int
@@ -67,7 +67,7 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
 light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) {
     std::vector<std::string> errors;
     /*
-     * [sample_config.csv:13]
+     * [sample_config.csv:17]
      *   field_name  : max_connections
      *   group       : ConnectionConfig
      *   type        : int
@@ -84,7 +84,7 @@ light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) 
         errors.push_back(oss.str());
     }
     /*
-     * [sample_config.csv:14]
+     * [sample_config.csv:18]
      *   field_name  : timeout_sec
      *   group       : ConnectionConfig
      *   type        : double
@@ -101,7 +101,7 @@ light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) 
         errors.push_back(oss.str());
     }
     /*
-     * [sample_config.csv:16]
+     * [sample_config.csv:20]
      *   field_name  : retry_times
      *   group       : ConnectionConfig
      *   type        : int

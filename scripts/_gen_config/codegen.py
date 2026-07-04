@@ -207,7 +207,7 @@ class CodeGenerator:
         # Emit iguana::enum_value specializations at file scope too
         if enum_defs:
             for ed in enum_defs:
-                lines.append(_make_enum_specialization(ed, namespace=""))
+                lines.append(_make_enum_specialization(ed, user_namespace=""))
                 lines.append("")
 
         lines.append("")
@@ -314,7 +314,7 @@ class CodeGenerator:
                 lines.append(_make_enum_def(ed))
                 lines.append("")
             for ed in self.model.enums.values():
-                lines.append(_make_enum_specialization(ed, namespace=""))
+                lines.append(_make_enum_specialization(ed, user_namespace=""))
                 lines.append("")
 
         lines.extend(self._ns_open())
@@ -393,7 +393,7 @@ class CodeGenerator:
                 lines.append(_make_enum_def(ed))
                 lines.append("")
             for ed in enum_defs:
-                lines.append(_make_enum_specialization(ed, namespace=""))
+                lines.append(_make_enum_specialization(ed, user_namespace=""))
                 lines.append("")
         lines.append("")
 

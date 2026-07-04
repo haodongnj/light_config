@@ -4,8 +4,8 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : a75c3b990d9070d6b5e7a3dd8ec5bb60
-///   generated_at   : 2026-07-04T11:18:33.638539+00:00
+///   csv_md5        : 5a649f642620b504f2ac316957b7327a
+///   generated_at   : 2026-07-04T14:38:19.799427+00:00
 ///   generator      : light_config
 /// -----------------------
 

@@ -37,6 +37,7 @@ class EnumDef:
     enumerators: list[tuple[str, int]]  # [("debug",0), ("info",1), ("warn",5)]
     hpp_file: str                   # "network.hpp" — required
     _csv_line: int                  # for error messages
+    namespace: str = ""             # optional C++ namespace for this enum
 
 
 @dataclass
@@ -234,10 +235,13 @@ class SchemaModel:
                 seen_names.add(name)
                 enumerators.append((name, val))
 
+            namespace = kv.get("namespace", "")
+
             result[enum_name] = EnumDef(
                 name=enum_name,
                 enumerators=enumerators,
                 hpp_file=hpp_file,
+                namespace=namespace,
                 _csv_line=line_num,
             )
         return result
