@@ -9,6 +9,7 @@
 
 set -euo pipefail
 
+GIT_ROOT="$(git rev-parse --show-toplevel)"
 CLANG_FORMAT="$(command -v clang-format || true)"
 if [ -z "$CLANG_FORMAT" ]; then
     echo "WARNING: clang-format not found — skipping automatic formatting." >&2
@@ -31,7 +32,7 @@ while IFS= read -r file; do
     tmp="$(mktemp)"
     git show ":$file" > "$tmp"
 
-    if "$CLANG_FORMAT" -i --style=file "$tmp" 2>/dev/null; then
+    if "$CLANG_FORMAT" -i "--style=file:${GIT_ROOT}/.clang-format" "$tmp" 2>/dev/null; then
         # Write the formatted content back to the working tree as well,
         # so the file on disk matches what's in the index after commit.
         cp "$tmp" "$file"

@@ -31,53 +31,50 @@ namespace light_config {
 /// \param[in]  expected_schema_version  If non-empty, check `$schema` key.
 /// \return     LoadResult with code==kOk and field audit on success.
 template <typename T>
-LoadResult load_from_json_file(T &config, const std::string &path,
+LoadResult load_from_json_file(T& config, const std::string& path,
                                std::string_view expected_schema_version = "") {
-  // Read file content.
-  std::string content;
-  if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
-    return r;
-  }
-
-  auto result = LoadResult::success();
-
-  // ---- Optional-field audit via recursive DOM walk ----
-  try {
-    iguana::jobject dom;
-    iguana::parse(dom, content);
-
-    // ---- Schema version check (uses the same DOM, no extra parse) ----
-    if (!expected_schema_version.empty()) {
-      auto schema_it = dom.find("$schema");
-      if (schema_it != dom.end() && schema_it->second.is_string()) {
-        auto file_ver =
-            schema_it->second
-                .template get<iguana::basic_json_value<char>::string_type>();
-        if (file_ver != expected_schema_version) {
-          auto msg = std::string("expected schema version '") +
-                     std::string(expected_schema_version) + "' but file has '" +
-                     file_ver + "'";
-          return LoadResult::failure(ErrorCode::kSchemaMismatch,
-                                     std::move(msg));
-        }
-      }
-      // $schema absent or non-string → no error (permissive by default)
+    // Read file content.
+    std::string content;
+    if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
+        return r;
     }
 
-    detail::audit_json_recursive(config, dom, result.absent_optionals,
-                                 result.present_fields);
-  } catch (const std::exception &e) {
-    return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
-  }
+    auto result = LoadResult::success();
 
-  // ---- Actual struct population ----
-  try {
-    iguana::from_json(config, content.begin(), content.end());
-  } catch (const std::exception &e) {
-    return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
-  }
+    // ---- Optional-field audit via recursive DOM walk ----
+    try {
+        iguana::jobject dom;
+        iguana::parse(dom, content);
 
-  return result;
+        // ---- Schema version check (uses the same DOM, no extra parse) ----
+        if (!expected_schema_version.empty()) {
+            auto schema_it = dom.find("$schema");
+            if (schema_it != dom.end() && schema_it->second.is_string()) {
+                auto file_ver =
+                    schema_it->second.template get<iguana::basic_json_value<char>::string_type>();
+                if (file_ver != expected_schema_version) {
+                    auto msg = std::string("expected schema version '")
+                               + std::string(expected_schema_version) + "' but file has '"
+                               + file_ver + "'";
+                    return LoadResult::failure(ErrorCode::kSchemaMismatch, std::move(msg));
+                }
+            }
+            // $schema absent or non-string → no error (permissive by default)
+        }
+
+        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
+    } catch (const std::exception& e) {
+        return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
+    }
+
+    // ---- Actual struct population ----
+    try {
+        iguana::from_json(config, content.begin(), content.end());
+    } catch (const std::exception& e) {
+        return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
+    }
+
+    return result;
 }
 
 /// Load a JSON string into a struct with optional-field audit.
@@ -88,48 +85,44 @@ LoadResult load_from_json_file(T &config, const std::string &path,
 /// kSchemaMismatch.  If `"$schema"` is absent, loading proceeds (the check
 /// is advisory — callers that require the key should verify separately).
 template <typename T>
-LoadResult
-load_from_json_string(T &config, const std::string &json_str,
-                      std::string_view expected_schema_version = "") {
-  auto result = LoadResult::success();
+LoadResult load_from_json_string(T& config, const std::string& json_str,
+                                 std::string_view expected_schema_version = "") {
+    auto result = LoadResult::success();
 
-  // ---- Optional-field audit via recursive DOM walk ----
-  try {
-    iguana::jobject dom;
-    iguana::parse(dom, json_str);
+    // ---- Optional-field audit via recursive DOM walk ----
+    try {
+        iguana::jobject dom;
+        iguana::parse(dom, json_str);
 
-    // ---- Schema version check (uses the same DOM, no extra parse) ----
-    if (!expected_schema_version.empty()) {
-      auto schema_it = dom.find("$schema");
-      if (schema_it != dom.end() && schema_it->second.is_string()) {
-        auto file_ver =
-            schema_it->second
-                .template get<iguana::basic_json_value<char>::string_type>();
-        if (file_ver != expected_schema_version) {
-          auto msg = std::string("expected schema version '") +
-                     std::string(expected_schema_version) + "' but file has '" +
-                     file_ver + "'";
-          return LoadResult::failure(ErrorCode::kSchemaMismatch,
-                                     std::move(msg));
+        // ---- Schema version check (uses the same DOM, no extra parse) ----
+        if (!expected_schema_version.empty()) {
+            auto schema_it = dom.find("$schema");
+            if (schema_it != dom.end() && schema_it->second.is_string()) {
+                auto file_ver =
+                    schema_it->second.template get<iguana::basic_json_value<char>::string_type>();
+                if (file_ver != expected_schema_version) {
+                    auto msg = std::string("expected schema version '")
+                               + std::string(expected_schema_version) + "' but file has '"
+                               + file_ver + "'";
+                    return LoadResult::failure(ErrorCode::kSchemaMismatch, std::move(msg));
+                }
+            }
+            // $schema absent or non-string → no error (permissive by default)
         }
-      }
-      // $schema absent or non-string → no error (permissive by default)
+
+        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
+    } catch (const std::exception& e) {
+        return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
     }
 
-    detail::audit_json_recursive(config, dom, result.absent_optionals,
-                                 result.present_fields);
-  } catch (const std::exception &e) {
-    return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
-  }
+    // ---- Actual struct population ----
+    try {
+        iguana::from_json(config, json_str);
+    } catch (const std::exception& e) {
+        return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
+    }
 
-  // ---- Actual struct population ----
-  try {
-    iguana::from_json(config, json_str);
-  } catch (const std::exception &e) {
-    return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
-  }
-
-  return result;
+    return result;
 }
 
 /// Serialize a config struct to a JSON string.
@@ -142,23 +135,23 @@ load_from_json_string(T &config, const std::string &json_str,
 /// \param[in] pretty  If true, produce indented/pretty JSON.
 /// \return  The JSON string, or std::nullopt if serialization throws.
 template <typename T>
-std::optional<std::string> to_json(const T &config, bool pretty = false) {
-  try {
-    iguana::string_stream ss;
-    iguana::to_json(config, ss);
-    std::string result = std::move(ss);
-    if (pretty) {
-      return iguana::prettify(result);
+std::optional<std::string> to_json(const T& config, bool pretty = false) {
+    try {
+        iguana::string_stream ss;
+        iguana::to_json(config, ss);
+        std::string result = std::move(ss);
+        if (pretty) {
+            return iguana::prettify(result);
+        }
+        return result;
+    } catch (const std::exception&) {
+        // Defensive: iguana serialization does not throw for well-formed
+        // YLT_REFL-annotated structs. This catch exists to uphold the API
+        // contract (never throw from a load/save function) against
+        // hypothetical edge cases (bad_alloc, corrupted internal state).
+        // This path is intentionally uncovered by tests.
+        return std::nullopt;
     }
-    return result;
-  } catch (const std::exception &) {
-    // Defensive: iguana serialization does not throw for well-formed
-    // YLT_REFL-annotated structs. This catch exists to uphold the API
-    // contract (never throw from a load/save function) against
-    // hypothetical edge cases (bad_alloc, corrupted internal state).
-    // This path is intentionally uncovered by tests.
-    return std::nullopt;
-  }
 }
 
 /// Write a config struct to a JSON file.
@@ -173,23 +166,22 @@ std::optional<std::string> to_json(const T &config, bool pretty = false) {
 /// \return  LoadResult with code==kOk on success; kJsonSerializeError or
 ///          kFileWriteError on failure.
 template <typename T>
-LoadResult save_to_json_file(const T &config, const std::string &path,
-                             bool pretty = true) {
-  auto json_opt = to_json(config, pretty);
-  if (!json_opt.has_value()) {
-    return LoadResult::failure(ErrorCode::kJsonSerializeError,
-                               "failed to serialize config to JSON");
-  }
-  std::ofstream file(path, std::ios::binary | std::ios::trunc);
-  if (!file) {
-    return LoadResult::failure(ErrorCode::kFileWriteError, path);
-  }
-  file << json_opt.value();
-  file.close();
-  if (!file.good()) {
-    return LoadResult::failure(ErrorCode::kFileWriteError, path);
-  }
-  return LoadResult::success();
+LoadResult save_to_json_file(const T& config, const std::string& path, bool pretty = true) {
+    auto json_opt = to_json(config, pretty);
+    if (!json_opt.has_value()) {
+        return LoadResult::failure(ErrorCode::kJsonSerializeError,
+                                   "failed to serialize config to JSON");
+    }
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) {
+        return LoadResult::failure(ErrorCode::kFileWriteError, path);
+    }
+    file << json_opt.value();
+    file.close();
+    if (!file.good()) {
+        return LoadResult::failure(ErrorCode::kFileWriteError, path);
+    }
+    return LoadResult::success();
 }
 
-} // namespace light_config
+}  // namespace light_config
