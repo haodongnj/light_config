@@ -3,3 +3,9 @@ Upstream: https://github.com/alibaba/yalantinglibs
 Upstream tag: v0.6.1
 Upstream commit: 8c1f2ea927a5a879046067a686599f825a370858
 Vendored in light_config at: fc08c427ce0a0b2108f204df403ecb76c67e7f56
+
+doctest 2.5.0
+Upstream: https://github.com/doctest/doctest
+Upstream tag: v2.5.0
+Upstream commit: 9b55f27c97af5205e6a4df9853d9de0cfba7eecf
+Vendored in light_config at: 2026-07-04
