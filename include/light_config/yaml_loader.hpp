@@ -87,7 +87,7 @@ LoadResult load_from_yaml_file(T &config, const std::string &path) {
   // Load the struct from YAML.
   try {
     iguana::from_yaml(config, content);
-  } catch (const std::runtime_error &e) {
+  } catch (const std::exception &e) {
     return LoadResult::failure(ErrorCode::kYamlParseError, e.what());
   }
 
@@ -105,7 +105,7 @@ template <typename T>
 LoadResult load_from_yaml_string(T &config, const std::string &yaml_str) {
   try {
     iguana::from_yaml(config, yaml_str);
-  } catch (const std::runtime_error &e) {
+  } catch (const std::exception &e) {
     return LoadResult::failure(ErrorCode::kYamlParseError, e.what());
   }
 

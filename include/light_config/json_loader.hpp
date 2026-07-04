@@ -120,14 +120,14 @@ LoadResult load_from_json_file(T &config, const std::string &path,
 
     detail::audit_json_recursive(config, dom, result.absent_optionals,
                                  result.present_fields);
-  } catch (const std::runtime_error &e) {
+  } catch (const std::exception &e) {
     return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
   }
 
   // ---- Actual struct population ----
   try {
     iguana::from_json(config, content.begin(), content.end());
-  } catch (const std::runtime_error &e) {
+  } catch (const std::exception &e) {
     return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
   }
 
@@ -172,14 +172,14 @@ load_from_json_string(T &config, const std::string &json_str,
 
     detail::audit_json_recursive(config, dom, result.absent_optionals,
                                  result.present_fields);
-  } catch (const std::runtime_error &e) {
+  } catch (const std::exception &e) {
     return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
   }
 
   // ---- Actual struct population ----
   try {
     iguana::from_json(config, json_str);
-  } catch (const std::runtime_error &e) {
+  } catch (const std::exception &e) {
     return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
   }
 
