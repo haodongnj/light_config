@@ -75,13 +75,14 @@ All loader functions return `LoadResult` and accept an optional
 |---|---|
 | `to_json(cfg, pretty=false)` | `std::optional<std::string>` |
 | `to_yaml(cfg)` | `std::optional<std::string>` |
-| `save_to_json_file(cfg, path, pretty=true)` | `bool` |
-| `save_to_yaml_file(cfg, path)` | `bool` |
+| `save_to_json_file(cfg, path, pretty=true)` | `LoadResult` |
+| `save_to_yaml_file(cfg, path)` | `LoadResult` |
 
 ### ErrorCode (excerpt)
 
-`kOk` (0), `kFileReadError` (1), `kFileEmpty` (2), `kJsonParseError` (10),
-`kJsonDeserializeError` (11), `kYamlParseError` (20),
+`kOk` (0), `kFileReadError` (1), `kFileEmpty` (2), `kFileWriteError` (3),
+`kJsonParseError` (10), `kJsonDeserializeError` (11), `kJsonSerializeError` (12),
+`kYamlParseError` (20), `kYamlSerializeError` (21),
 `kValidationError` (30), `kSchemaMismatch` (31). See `error_code_message()`
 for human-readable labels.
 
