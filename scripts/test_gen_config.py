@@ -339,6 +339,298 @@ def test_optional_validation_uses_value() -> None:
           "optional field validation accesses .value()")
 
 
+# ---------------------------------------------------------------------------
+# Enum support
+# ---------------------------------------------------------------------------
+
+
+def test_enum_type_accepted_in_field() -> None:
+    """enum declared via __enum__ is accepted as a field type."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+        "hpp_file=network.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,info,,,false,Log verbosity\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("LogLevel level = LogLevel::info;" in hpp,
+          "enum field accepted and emitted with qualified default")
+
+
+def test_enum_def_parsing_basic() -> None:
+    """__enum__ row with auto-sequential values emits correct definition."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+        "hpp_file=network.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,info,,,false,Log verbosity\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("enum class LogLevel { debug = 0, info = 1, warn = 2, error = 3 };" in hpp,
+          "enum class emitted with sequential = val syntax")
+    check("std::array<int, 4> value = {0, 1, 2, 3}" in hpp,
+          "enum_value specialization with sequential values")
+
+
+def test_enum_def_parsing_explicit() -> None:
+    """__enum__ row with explicit integer values."""
+    csv_text = (
+        "__enum__,enum_name=Protocol,enum_def=http=80|https=443|ssh=22,"
+        "hpp_file=network.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "p,MyConfig,Protocol,http,,,false,Protocol\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("enum class Protocol { http = 80, https = 443, ssh = 22 };" in hpp,
+          "enum class emitted with explicit = val syntax")
+    check("std::array<int, 3> value = {80, 443, 22}" in hpp,
+          "enum_value specialization with explicit values")
+
+
+def test_enum_def_parsing_mixed() -> None:
+    """__enum__ row with mixed auto-sequential and explicit values."""
+    csv_text = (
+        "__enum__,enum_name=Mixed,enum_def=a|b=5|c,hpp_file=x.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "m,MyConfig,Mixed,a,,,false,Mixed enum\n"
+    )
+    _, hpp = _generate(csv_text)
+    # a=0 (auto), b=5 (explicit), c=1 (next available after 0)
+    check("enum class Mixed { a = 0, b = 5, c = 1 };" in hpp,
+          "enum class emitted with mixed = val syntax")
+    check("std::array<int, 3> value = {0, 5, 1}" in hpp,
+          "enum_value specialization with mixed values (auto-cursor gap fill)")
+
+
+def test_enum_def_missing_enum_name_rejected() -> None:
+    """__enum__ row without enum_name is rejected."""
+    csv_text = (
+        "__enum__,hpp_file=x.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
+    )
+    check(_generate_exits(csv_text),
+          "__enum__ missing enum_name rejected")
+
+
+def test_enum_def_empty_enum_def_rejected() -> None:
+    """__enum__ row with empty enum_def is rejected."""
+    csv_text = (
+        "__enum__,enum_name=Empty,enum_def=,hpp_file=x.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
+    )
+    check(_generate_exits(csv_text),
+          "__enum__ empty enum_def rejected")
+
+
+def test_enum_def_missing_hpp_file_rejected() -> None:
+    """__enum__ row without hpp_file is rejected."""
+    csv_text = (
+        "__enum__,enum_name=NoFile,enum_def=a|b\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
+    )
+    check(_generate_exits(csv_text),
+          "__enum__ missing hpp_file rejected")
+
+
+def test_enum_def_duplicate_name_rejected() -> None:
+    """Duplicate enum_name in __enum__ rows is rejected."""
+    csv_text = (
+        "__enum__,enum_name=Dup,enum_def=a|b,hpp_file=x.hpp\n"
+        "__enum__,enum_name=Dup,enum_def=c|d,hpp_file=y.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
+    )
+    check(_generate_exits(csv_text),
+          "__enum__ duplicate enum_name rejected")
+
+
+def test_enum_def_duplicate_enumerator_rejected() -> None:
+    """Duplicate enumerator name within an enum is rejected."""
+    csv_text = (
+        "__enum__,enum_name=DupEnum,enum_def=a|b|a,hpp_file=x.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
+    )
+    check(_generate_exits(csv_text),
+          "__enum__ duplicate enumerator name rejected")
+
+
+def test_enum_default_mapped_to_qualified_literal() -> None:
+    """Enum default 'info' is emitted as LogLevel::info."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+        "hpp_file=network.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,info,,,false,Log verbosity\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("LogLevel level = LogLevel::info;" in hpp,
+          "enum default emitted as qualified literal")
+
+
+def test_enum_default_not_an_enumerator_rejected() -> None:
+    """Enum default that isn't a valid enumerator is rejected."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+        "hpp_file=network.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,not_a_level,,,false,Bad default\n"
+    )
+    check(_generate_exits(csv_text),
+          "enum default not matching any enumerator rejected")
+
+
+def test_enum_cross_file_include_emitted() -> None:
+    """Cross-file enum reference generates #include."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info,hpp_file=network.hpp\n"
+        "field_name,group,type,default,min,max,optional,description,hpp_file\n"
+        "level,MyConfig,LogLevel,info,,,false,Log level,my_config.hpp\n"
+    )
+    out_dir, hpp = _generate(csv_text)
+    # Find the file containing MyConfig
+    mc_hpp = out_dir / "my_config.hpp"
+    check(mc_hpp.exists(), "my_config.hpp emitted")
+    content = mc_hpp.read_text()
+    check('#include "network.hpp"' in content,
+          "cross-file include emitted for enum")
+
+
+def test_enum_same_file_no_include() -> None:
+    """Enum used in same hpp_file does not generate a cross-file include."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info,"
+        "hpp_file=my_config.hpp\n"
+        "field_name,group,type,default,min,max,optional,description,hpp_file\n"
+        "level,MyConfig,LogLevel,info,,,false,Log level,my_config.hpp\n"
+    )
+    out_dir, hpp = _generate(csv_text)
+    mc_hpp = out_dir / "my_config.hpp"
+    content = mc_hpp.read_text()
+    # Should NOT have an include for itself
+    check('#include "my_config.hpp"' not in content,
+          "no self-include for enum in same file")
+
+
+def test_enum_value_specialization_emitted() -> None:
+    """enum_value<T> specialization is emitted in generated code."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info,hpp_file=x.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,info,,,false,Log level\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("iguana::enum_value<LogLevel>" in hpp,
+          "enum_value specialization emitted")
+    check("#include <array>" in hpp,
+          "#include <array> emitted for enum def")
+
+
+def test_enum_validation_skipped() -> None:
+    """Enum fields produce no range checks in validate_ function."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+        "hpp_file=network.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,info,,,false,Log verbosity\n"
+        "port,MyConfig,int,8080,1,65535,false,Port with range\n"
+    )
+    out_dir, hpp = _generate(csv_text)
+    cpp_files = list(out_dir.glob("*.cpp"))
+    check(bool(cpp_files), "cpp file emitted")
+    cpp = cpp_files[0].read_text()
+    # Port should have range check, LogLevel should not
+    check("cfg.port" in cpp, "port field has validation")
+    check("cfg.level" not in cpp, "enum field has no validation check")
+    check("#include <array>" in hpp, "#include <array> emitted")
+
+
+def test_sample_json_uses_enum_string() -> None:
+    """Generated JSON sample uses enum string, not integer."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+        "hpp_file=my_config.hpp\n"
+        "field_name,group,type,default,min,max,optional,description,hpp_file\n"
+        "level,MyConfig,LogLevel,info,,,false,Log level,my_config.hpp\n"
+    )
+    csv_path, out_dir = _write_csv(csv_text)
+    cfg = gen_config.GeneratorConfig(
+        input_csv=str(csv_path),
+        output_dir=str(out_dir),
+        generate_samples=True,
+    )
+    with open(os.devnull, "w") as devnull:
+        old_out, old_err = sys.stdout, sys.stderr
+        sys.stdout = sys.stderr = devnull
+        try:
+            gen_config.generate(cfg)
+        finally:
+            sys.stdout, sys.stderr = old_out, old_err
+    jf = out_dir / "valid_config.json"
+    check(jf.exists(), "valid_config.json emitted")
+    data = jf.read_text()
+    check('"info"' in data, "enum value in JSON is string 'info'")
+    check("0" not in data.split('"level"')[1][:20],
+          "enum value is NOT integer 0")
+
+
+def test_enum_namespace_in_def_emits_wrapper() -> None:
+    """Enum with namespace=N -> enum class wrapped in namespace N."""
+    csv_text = (
+        "__enum__,enum_name=Color,enum_def=red|green|blue,"
+        "hpp_file=colors.hpp,namespace=graphics\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "c,MyConfig,Color,red,,,false,Color field\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("namespace graphics {" in hpp,
+          "per-enum namespace open emitted for enum def")
+    check("enum class Color { red = 0, green = 1, blue = 2 };" in hpp,
+          "enum class inside per-enum namespace")
+    check("} // namespace graphics" in hpp,
+          "per-enum namespace close emitted")
+
+
+def test_enum_namespace_in_specialization_qualifies_type() -> None:
+    """enum_value specialization uses enum's own namespace for qualification."""
+    csv_text = (
+        "__enum__,enum_name=Color,enum_def=red|green|blue,"
+        "hpp_file=colors.hpp,namespace=graphics\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "c,MyConfig,Color,red,,,false,Color field\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("iguana::enum_value<graphics::Color>" in hpp,
+          "enum_value specialization uses per-enum namespace for qualified type")
+
+
+def test_enum_no_namespace_defaults_to_global_scope() -> None:
+    """Back-compat: no namespace= on enum -> file-scope definition, no wrapper."""
+    csv_text = (
+        "__enum__,enum_name=LogLevel,enum_def=debug|info,hpp_file=x.hpp\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "level,MyConfig,LogLevel,info,,,false,Log level\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("namespace LogLevel" not in hpp,
+          "no spurious per-enum namespace wrapper when namespace= absent")
+
+
+def test_enum_min_max_rejected() -> None:
+    """Enum fields with min or max constraint are rejected."""
+    for col_name in ("min", "max"):
+        csv_text = (
+            "__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,"
+            "hpp_file=network.hpp\n"
+            "field_name,group,type,default,min,max,optional,description\n"
+            f"level,MyConfig,LogLevel,info,{'1' if col_name == 'min' else ''},{'1' if col_name == 'max' else ''},false,Log level\n"
+        )
+        check(_generate_exits(csv_text),
+              f"enum field with '{col_name}' constraint is rejected")
+
 def main() -> int:
     test_type_mapping()
     test_unknown_type_rejected()
@@ -359,6 +651,26 @@ def main() -> int:
     test_optional_false_explicit()
     test_optional_empty_treated_as_false()
     test_optional_validation_uses_value()
+    test_enum_type_accepted_in_field()
+    test_enum_def_parsing_basic()
+    test_enum_def_parsing_explicit()
+    test_enum_def_parsing_mixed()
+    test_enum_def_missing_enum_name_rejected()
+    test_enum_def_empty_enum_def_rejected()
+    test_enum_def_missing_hpp_file_rejected()
+    test_enum_def_duplicate_name_rejected()
+    test_enum_def_duplicate_enumerator_rejected()
+    test_enum_default_mapped_to_qualified_literal()
+    test_enum_default_not_an_enumerator_rejected()
+    test_enum_cross_file_include_emitted()
+    test_enum_same_file_no_include()
+    test_enum_value_specialization_emitted()
+    test_enum_validation_skipped()
+    test_sample_json_uses_enum_string()
+    test_enum_namespace_in_def_emits_wrapper()
+    test_enum_namespace_in_specialization_qualifies_type()
+    test_enum_no_namespace_defaults_to_global_scope()
+    test_enum_min_max_rejected()
     if _FAIL:
         print(f"\n{_FAIL} self-test(s) failed.")
         return 1
@@ -368,3 +680,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

@@ -24,6 +24,22 @@ from .exceptions import GeneratorError
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Enum definition
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EnumDef:
+    """Parsed enum declaration from a __enum__ metadata row."""
+
+    name: str                       # "LogLevel"
+    enumerators: list[tuple[str, int]]  # [("debug",0), ("info",1), ("warn",5)]
+    hpp_file: str                   # "network.hpp" — required
+    _csv_line: int                  # for error messages
+    namespace: str = ""             # optional C++ namespace for this enum
+
+
 @dataclass
 class SchemaModel:
     """Parsed CSV schema — groups, fields, containment, root detection."""
@@ -37,6 +53,7 @@ class SchemaModel:
     ordered_groups: list[str] = field(default_factory=list)
     has_optional: bool = False
     metadata: dict[str, str] = field(default_factory=dict)
+    enums: dict[str, EnumDef] = field(default_factory=dict)
 
     @classmethod
     def from_csv(cls, input_path: str) -> "SchemaModel":
@@ -52,23 +69,34 @@ class SchemaModel:
             reader = csv.reader(f)
             parsed = list(reader)
 
-        # ---- Consume leading __metadata__ rows before the column header ----
+        # ---- Consume leading metadata rows before the column header ----
         metadata: dict[str, str] = {}
+        enum_rows: list[list[str]] = []
         n_meta: int = 0
-        while parsed and parsed[0] and parsed[0][0].strip() == "__metadata__":
-            meta_row = parsed.pop(0)
+        while parsed and parsed[0] and (
+            parsed[0][0].strip() == "__metadata__"
+            or parsed[0][0].strip() == "__enum__"
+        ):
+            row = parsed.pop(0)
+            row_type = row[0].strip()
             n_meta += 1
-            for cell in meta_row[1:]:
-                cell = (cell or "").strip()
-                if cell == "":
-                    continue
-                if "=" not in cell:
-                    raise GeneratorError(
-                        f"malformed __metadata__ pair '{cell}' "
-                        f"(expected key=value)."
-                    )
-                k, _, v = cell.partition("=")
-                metadata[k.strip()] = v.strip()
+
+            if row_type == "__metadata__":
+                for cell in row[1:]:
+                    cell = (cell or "").strip()
+                    if cell == "":
+                        continue
+                    if "=" not in cell:
+                        raise GeneratorError(
+                            f"malformed __metadata__ pair '{cell}' "
+                            f"(expected key=value)."
+                        )
+                    k, _, v = cell.partition("=")
+                    metadata[k.strip()] = v.strip()
+            elif row_type == "__enum__":
+                # Inject the CSV line number for error messages
+                row[0] = str(n_meta + 1)
+                enum_rows.append(row)
 
         if len(parsed) < 2:
             raise GeneratorError("CSV file is empty.")
@@ -90,14 +118,133 @@ class SchemaModel:
 
         model = cls()
         model.metadata = metadata
+        model.enums = cls._parse_enum_rows(enum_rows, inpath.name)
         model._partition_rows(rows)
         model._resolve_hpp_files()
         model._classify_groups()
         model._validate_types()
+        model._validate_enum_references()
         model._detect_root()
         model._build_order()
         model._detect_optional()
         return model
+
+    @staticmethod
+    def _parse_enum_rows(raw_enum_rows: list[list[str]],
+                         csv_name: str) -> dict[str, EnumDef]:
+        """Parse __enum__ metadata rows; return dict keyed by enum name."""
+        result: dict[str, EnumDef] = {}
+        for row in raw_enum_rows:
+            line_num = int(row[0]) if row[0] else 0
+            kv: dict[str, str] = {}
+            for cell in row[1:]:
+                cell = (cell or "").strip()
+                if cell == "":
+                    continue
+                if "=" not in cell:
+                    raise GeneratorError(
+                        f"[{csv_name}:{line_num}] malformed __enum__ pair "
+                        f"'{cell}' (expected key=value)."
+                    )
+                k, _, v = cell.partition("=")
+                kv[k.strip()] = v.strip()
+
+            # Validate required keys
+            enum_name = kv.get("enum_name", "")
+            if not enum_name:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row missing required "
+                    f"key 'enum_name'."
+                )
+            enum_def_str = kv.get("enum_def", "")
+            if not enum_def_str:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row 'enum_name="
+                    f"{enum_name}' has empty enum_def."
+                )
+            hpp_file = kv.get("hpp_file", "")
+            if not hpp_file:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row 'enum_name="
+                    f"{enum_name}' missing required key 'hpp_file'."
+                )
+
+            # Check for duplicate enum_name
+            if enum_name in result:
+                first_line = result[enum_name]._csv_line
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] duplicate enum_name "
+                    f"'{enum_name}' (first declared at [{csv_name}:"
+                    f"{first_line}])."
+                )
+
+            # Parse enumerators (pipe-separated)
+            enumerators: list[tuple[str, int]] = []
+            claimed_ints: set[int] = set()
+            entries = [e.strip() for e in enum_def_str.split("|") if e.strip()]
+            if not entries:
+                raise GeneratorError(
+                    f"[{csv_name}:{line_num}] __enum__ row 'enum_name="
+                    f"{enum_name}' has empty enum_def."
+                )
+
+            # First pass: collect explicit values
+            auto_cursor = 0
+            for entry in entries:
+                if "=" in entry:
+                    name, _, val_str = entry.partition("=")
+                    name = name.strip()
+                    val_str = val_str.strip()
+                    if not name:
+                        raise GeneratorError(
+                            f"[{csv_name}:{line_num}] __enum__ row "
+                            f"'enum_name={enum_name}' has empty enumerator "
+                            f"name in entry '{entry}'."
+                        )
+                    try:
+                        val = int(val_str, 10)
+                    except ValueError:
+                        raise GeneratorError(
+                            f"[{csv_name}:{line_num}] __enum__ row "
+                            f"'enum_name={enum_name}' enumerator '{name}' "
+                            f"has non-integer value '{val_str}'."
+                        )
+                    claimed_ints.add(val)
+
+            # Second pass: build list, auto-assign gaps
+            seen_names: set[str] = set()
+            for entry in entries:
+                if "=" in entry:
+                    name, _, val_str = entry.partition("=")
+                    name = name.strip()
+                    val = int(val_str.strip(), 10)
+                else:
+                    name = entry.strip()
+                    # Find next available integer
+                    while auto_cursor in claimed_ints:
+                        auto_cursor += 1
+                    val = auto_cursor
+                    claimed_ints.add(val)
+
+                if name in seen_names:
+                    raise GeneratorError(
+                        f"[{csv_name}:{line_num}] __enum__ row "
+                        f"'enum_name={enum_name}' has duplicate enumerator "
+                        f"'{name}'."
+                    )
+                seen_names.add(name)
+                enumerators.append((name, val))
+
+            namespace = kv.get("namespace", "")
+
+            result[enum_name] = EnumDef(
+                name=enum_name,
+                enumerators=enumerators,
+                hpp_file=hpp_file,
+                namespace=namespace,
+                _csv_line=line_num,
+            )
+        return result
 
     # -- internal helpers --------------------------------------------------
 
@@ -136,6 +283,13 @@ class SchemaModel:
             for row in grows:
                 csv_type = row["type"].strip()
                 is_opt = _is_optional(row)
+                # Reject type that is both an enum name and a group name
+                if csv_type in self.enums and csv_type in group_names:
+                    where = _row_location(row)
+                    raise GeneratorError(
+                        f"{where} type '{csv_type}' is both an enum and "
+                        f"a struct group — names must be unique."
+                    )
                 if csv_type in group_names:
                     if is_opt:
                         where = _row_location(row)
@@ -160,7 +314,7 @@ class SchemaModel:
         for gname in self.ordered_groups_actual():
             for row in self.group_regular[gname]:
                 csv_type = row["type"].strip()
-                if csv_type not in _BUILTIN_TYPES:
+                if csv_type not in _BUILTIN_TYPES and csv_type not in self.enums:
                     raise GeneratorError(
                         f"[{row.get('_csv_name','')}:{row.get('_csv_line','')}] "
                         f"field '{row['field_name'].strip()}' has unknown type "
@@ -170,6 +324,19 @@ class SchemaModel:
                 if csv_type in INT_TYPES:
                     self._validate_int_literals(row, csv_type)
 
+                # Reject min/max on enum fields — yalantinglibs handles
+                # parse-time rejection of invalid enumerator strings,
+                # and range constraints on enums have no meaning.
+                if csv_type in self.enums:
+                    for col in ("min", "max"):
+                        if (row.get(col) or "").strip():
+                            where = _row_location(row)
+                            field = row["field_name"].strip()
+                            raise GeneratorError(
+                                f"{where} field '{field}' "
+                                f"has '{col}' constraint on enum type "
+                                f"'{csv_type}' — min/max are not supported on enums."
+                            )
     def _validate_int_literals(self, row: dict, csv_type: str) -> None:
         """Reject default/min/max literals that don't fit the integer width."""
         lo, hi = _int_range(csv_type)
@@ -191,6 +358,27 @@ class SchemaModel:
                     f"{col} {v} out of range for type '{csv_type}' "
                     f"[{lo}, {hi}]."
                 )
+
+    def _validate_enum_references(self) -> None:
+        """Ensure every enum referenced by a field exists in self.enums,
+        and that enum defaults are valid enumerator names."""
+        for gname in self.ordered_groups_actual():
+            for row in self.group_regular[gname]:
+                csv_type = row["type"].strip()
+                if csv_type not in self.enums:
+                    continue
+                ed = self.enums[csv_type]
+                default = (row.get("default") or "").strip()
+                if default:
+                    enames = {name for name, _ in ed.enumerators}
+                    if default not in enames:
+                        where = _row_location(row)
+                        raise GeneratorError(
+                            f"{where} field '{row['field_name'].strip()}' "
+                            f"default '{default}' is not a valid enumerator "
+                            f"of '{csv_type}' (valid: "
+                            f"{', '.join(sorted(enames))})."
+                        )
 
     def ordered_groups_actual(self) -> list[str]:
         """All groups in insertion order (used before root detection)."""
