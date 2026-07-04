@@ -22,15 +22,18 @@ enum class ErrorCode {
   kOk = 0, ///< Success.
 
   // ---- File I/O errors (range 1–9) ----
-  kFileReadError = 1, ///< Cannot access or stat the file.
-  kFileEmpty = 2,     ///< File exists but is empty.
+  kFileReadError = 1,  ///< Cannot access or stat the file.
+  kFileEmpty = 2,      ///< File exists but is empty.
+  kFileWriteError = 3, ///< Cannot open or write to the file.
 
   // ---- Parse errors ----
   // JSON errors (range 10–19)
   kJsonParseError = 10,       ///< JSON syntax or structural error.
   kJsonDeserializeError = 11, ///< JSON parsed OK but struct population failed.
+  kJsonSerializeError = 12,   ///< Failed to serialize struct to JSON.
   // YAML errors (range 20–29)
-  kYamlParseError = 20, ///< YAML syntax or structural error.
+  kYamlParseError = 20,     ///< YAML syntax or structural error.
+  kYamlSerializeError = 21, ///< Failed to serialize struct to YAML.
 
   // ---- Validation errors (range 30–39) ----
   kValidationError = 30, ///< Config values out of allowed range.
@@ -39,11 +42,11 @@ enum class ErrorCode {
 
 // Verify range boundaries — catches accidental drift when new error codes are
 // added beyond the allocated range for that category.
-static_assert(static_cast<int>(ErrorCode::kFileEmpty) < 10,
+static_assert(static_cast<int>(ErrorCode::kFileWriteError) < 10,
               "ErrorCode range violation: File I/O errors must stay in [1, 9]");
-static_assert(static_cast<int>(ErrorCode::kJsonDeserializeError) < 20,
+static_assert(static_cast<int>(ErrorCode::kJsonSerializeError) < 20,
               "ErrorCode range violation: JSON errors must stay in [10, 19]");
-static_assert(static_cast<int>(ErrorCode::kYamlParseError) < 30,
+static_assert(static_cast<int>(ErrorCode::kYamlSerializeError) < 30,
               "ErrorCode range violation: YAML errors must stay in [20, 29]");
 static_assert(
     static_cast<int>(ErrorCode::kSchemaMismatch) < 40,
@@ -59,12 +62,18 @@ constexpr const char *error_code_message(ErrorCode code) noexcept {
     return "file read error";
   case ErrorCode::kFileEmpty:
     return "file is empty";
+  case ErrorCode::kFileWriteError:
+    return "file write error";
   case ErrorCode::kJsonParseError:
     return "JSON parse error";
   case ErrorCode::kJsonDeserializeError:
     return "JSON deserialize error";
+  case ErrorCode::kJsonSerializeError:
+    return "JSON serialize error";
   case ErrorCode::kYamlParseError:
     return "YAML parse error";
+  case ErrorCode::kYamlSerializeError:
+    return "YAML serialize error";
   case ErrorCode::kValidationError:
     return "validation error";
   case ErrorCode::kSchemaMismatch:

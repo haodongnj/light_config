@@ -149,6 +149,16 @@ TEST_CASE("JSON no optional fields") {
   CHECK(r.present_fields.size() == 2);
 }
 
+TEST_CASE("error_code_message for new save-related codes") {
+  using EC = light_config::ErrorCode;
+  CHECK(light_config::error_code_message(EC::kFileWriteError) ==
+        std::string("file write error"));
+  CHECK(light_config::error_code_message(EC::kJsonSerializeError) ==
+        std::string("JSON serialize error"));
+  CHECK(light_config::error_code_message(EC::kYamlSerializeError) ==
+        std::string("YAML serialize error"));
+}
+
 TEST_CASE("JSON parse error") {
   TestConfig cfg;
   auto r = light_config::load_from_json_string(cfg, "{invalid");
