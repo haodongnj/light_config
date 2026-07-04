@@ -194,15 +194,25 @@ class CodeGenerator:
         lines: list[str] = [_make_header_preamble(has_opt, extra_includes,
                                                   self.provenance, has_int,
                                                   has_enums=has_enums)]
-        lines.extend(self._ns_open())
-        lines.append("")
 
-        # Emit enums belonging to this file group (enum class inside namespace)
+        # Emit enums at file scope (before namespace) so yalantinglibs'
+        # try_get_enum_name() can parse unqualified enumerator names
+        # from __PRETTY_FUNCTION__.
         enum_defs = self._enums_for_file(hpp_name)
         if enum_defs:
             for ed in enum_defs:
                 lines.append(_make_enum_def(ed))
                 lines.append("")
+
+        # Emit iguana::enum_value specializations at file scope too
+        if enum_defs:
+            for ed in enum_defs:
+                lines.append(_make_enum_specialization(ed, namespace=""))
+                lines.append("")
+
+        lines.append("")
+        lines.extend(self._ns_open())
+        lines.append("")
 
         enum_names = set(self.model.enums.keys())
         for gname in groups:
@@ -231,14 +241,6 @@ class CodeGenerator:
             lines.append(_make_validate_decl(struct_name))
             lines.append("")
         lines.extend(self._ns_close())
-
-        # Emit iguana::enum_value specializations after namespace close
-        if enum_defs:
-            lines.append("")
-            for ed in enum_defs:
-                lines.append(_make_enum_specialization(ed, self._namespace))
-                lines.append("")
-
         return "\n".join(lines)
 
     def _build_file_group_source(self, hpp_name: str,
@@ -305,15 +307,21 @@ class CodeGenerator:
                                   has_int_types=self.model.has_int_types,
                                   has_enums=has_enums)
         ]
+
+        # Emit enums and specializations at file scope
+        if has_enums:
+            for ed in self.model.enums.values():
+                lines.append(_make_enum_def(ed))
+                lines.append("")
+            for ed in self.model.enums.values():
+                lines.append(_make_enum_specialization(ed, namespace=""))
+                lines.append("")
+
         lines.extend(self._ns_open())
         lines.append("")
 
-        # Emit all enums before structs
+        # Emit all structs
         enum_names = set(self.model.enums.keys())
-        for ed in self.model.enums.values():
-            lines.append(_make_enum_def(ed))
-            lines.append("")
-
         for gname in self.model.ordered_groups:
             body, _ = _make_struct_body(
                 gname,
@@ -331,14 +339,6 @@ class CodeGenerator:
             lines.append(_make_validate_decl(gname))
             lines.append("")
         lines.extend(self._ns_close())
-
-        # Emit iguana::enum_value specializations after namespace close
-        if has_enums:
-            lines.append("")
-            for ed in self.model.enums.values():
-                lines.append(_make_enum_specialization(ed, self._namespace))
-                lines.append("")
-
         return "\n".join(lines)
 
     def _build_monolithic_source_content(self) -> str:
@@ -385,15 +385,20 @@ class CodeGenerator:
         lines: list[str] = [_make_header_preamble(has_opt, extra_includes,
                                                   self.provenance, has_int,
                                                   has_enums=has_enums)]
-        lines.extend(self._ns_open())
-        lines.append("")
 
-        # Emit enums belonging to this file
+        # Emit enums and specializations at file scope
         enum_defs = self._enums_for_file(hpp_name)
         if enum_defs:
             for ed in enum_defs:
                 lines.append(_make_enum_def(ed))
                 lines.append("")
+            for ed in enum_defs:
+                lines.append(_make_enum_specialization(ed, namespace=""))
+                lines.append("")
+        lines.append("")
+
+        lines.extend(self._ns_open())
+        lines.append("")
 
         enum_names = set(self.model.enums.keys())
         body, _ = _make_struct_body(
@@ -410,14 +415,6 @@ class CodeGenerator:
         lines.append(_make_validate_decl(struct_name))
         lines.append("")
         lines.extend(self._ns_close())
-
-        # Emit iguana::enum_value specializations after namespace close
-        if enum_defs:
-            lines.append("")
-            for ed in enum_defs:
-                lines.append(_make_enum_specialization(ed, self._namespace))
-                lines.append("")
-
         return "\n".join(lines)
 
     def _build_struct_source_content(self, gname: str, hpp_name: str) -> str:

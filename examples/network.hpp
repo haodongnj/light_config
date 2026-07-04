@@ -7,7 +7,7 @@
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
 ///   csv_md5        : a75c3b990d9070d6b5e7a3dd8ec5bb60
-///   generated_at   : 2026-07-04T10:16:12.761500+00:00
+///   generated_at   : 2026-07-04T10:51:54.044866+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -19,9 +19,6 @@
 #include <vector>
 
 #include <array>
-
-namespace app {
-
 /*
  * [network.hpp:__enum__ row]
  *   enum_name   : LogLevel
@@ -29,6 +26,13 @@ namespace app {
  *   hpp_file    : network.hpp
  */
 enum class LogLevel { debug, info, warn, error };
+
+template <>
+struct iguana::enum_value<LogLevel> {
+    constexpr static std::array<int, 4> value = {0, 1, 2, 3};
+};
+
+namespace app {
 
 struct ServerConfig {
     /*
@@ -167,8 +171,3 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg);
 light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg);
 
 }  // namespace app
-
-template <>
-struct iguana::enum_value<app::LogLevel> {
-    constexpr static std::array<int, 4> value = {0, 1, 2, 3};
-};
