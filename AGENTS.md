@@ -28,6 +28,10 @@ The library is **header-only** (`light_config` is an `INTERFACE` CMake target). 
 
 ## Formatting & static analysis
 
+All C++ code is formatted with **clang-format** (Google-based, 4-space indent, 100 cols, configured in
+`.clang-format`). VS Code auto-formats on save via the `xaver.clang-format` extension (configured in
+`.vscode/settings.json`).
+
 ```bash
 # Format all hand-written sources in-place
 cmake --build build --target format
@@ -39,7 +43,7 @@ cmake --build build --target check-format
 cmake -B build -S . -DENABLE_CLANG_TIDY=ON
 ```
 
-Style: Google-based, 4-space indent, 100 cols (`.clang-format`). Edit hooks auto-format `.hpp`/`.cpp` files on save — no need to run clang-format manually after edits. Generated files (`examples/app_config.*`, `examples/network.*`) are excluded from both format targets and clang-tidy.
+Generated files (`examples/app_config.*`, `examples/network.*`) are excluded from both format targets and clang-tidy.
 
 ## Architecture
 

@@ -29,7 +29,8 @@ never write a line of hand-rolled JSON/YAML parsing.
 - **Provenance stamp** — every generated file records schema version, source
   CSV, MD5 hash, and UTC timestamp in a `///` comment block.
 - **Zero external dependencies** — only standard library + vendored headers.
-- **Auto-formatted** — pre-commit hook and PostToolUse hook keep code
+- **Auto-formatted** — all C++ code is formatted with **clang-format** (Google-based,
+  4-space indent, 100 cols). Pre-commit hook and VS Code auto-formatting keep code
   formatted; `check-format` CMake target for CI enforcement.
 
 ## Quick start
@@ -172,11 +173,17 @@ CLI flags `--namespace` and `--schema-version` override metadata values.
 
 ## Formatting
 
+All C++ code is formatted with **clang-format** (Google-based style, 4-space indent, 100 columns).
+The config lives in `.clang-format` at the repo root.
+
 ```bash
 cmake --build build --target format        # format all hand-written sources
 cmake --build build --target check-format  # CI dry-run check
 ln -sf ../../scripts/pre-commit .git/hooks/pre-commit  # install hook
 ```
+
+VS Code will auto-format on save when the `xaver.clang-format` extension is installed (configured in
+`.vscode/settings.json`).
 
 ## License
 
