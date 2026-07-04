@@ -79,17 +79,12 @@ def _make_header_preamble(has_optional: bool,
 
 
 def _make_enum_def(ed: EnumDef) -> str:
-    """Generate enum class definition + enum_value<T> specialization.
+    """Generate enum class definition (inside namespace).
 
-    Example output:
-        enum class LogLevel { debug, info, warn, error };
-        template <>
-        struct enum_value<LogLevel> {
-            constexpr static std::array<int, 4> value = {0, 1, 5, 6};
-        };
+    The enum_value<T> specialization is emitted separately by
+    _make_enum_specialization, outside the user's namespace.
     """
     names = ", ".join(name for name, _ in ed.enumerators)
-    vals = ", ".join(str(val) for _, val in ed.enumerators)
     n = len(ed.enumerators)
 
     return (
@@ -99,9 +94,22 @@ def _make_enum_def(ed: EnumDef) -> str:
         f" *   enumerators : {n}\n"
         f" *   hpp_file    : {ed.hpp_file}\n"
         f" */\n"
-        f"enum class {ed.name} {{ {names} }};\n"
+        f"enum class {ed.name} {{ {names} }};"
+    )
+
+
+def _make_enum_specialization(ed: EnumDef, namespace: str = "") -> str:
+    """Generate iguana::enum_value<T> specialization (at global/namespace scope).
+
+    When *namespace* is non-empty the enum type is qualified (e.g. app::LogLevel).
+    """
+    vals = ", ".join(str(val) for _, val in ed.enumerators)
+    n = len(ed.enumerators)
+    qualified = f"{namespace}::{ed.name}" if namespace else ed.name
+
+    return (
         f"template <>\n"
-        f"struct enum_value<{ed.name}> {{\n"
+        f"struct iguana::enum_value<{qualified}> {{\n"
         f"    constexpr static std::array<int, {n}> value = {{{vals}}};\n"
         f"}};"
     )

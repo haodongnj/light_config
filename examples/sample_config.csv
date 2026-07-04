@@ -1,7 +1,9 @@
 __metadata__,namespace=app,schema_version=1.0.0,generator=light_config
+__enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,hpp_file=network.hpp
 field_name,group,type,default,min,max,optional,description,hpp_file
 debug,AppConfig,bool,false,,,false,Enable debug logging,app_config.hpp
 log_file,AppConfig,string,/var/log/app.log,,,false,Log file path,app_config.hpp
+log_level,AppConfig,LogLevel,info,,,false,Log verbosity level,app_config.hpp
 allowed_origins,AppConfig,vector<string>,,,,true,"Allowed CORS origins (optional)",app_config.hpp
 server,AppConfig,ServerConfig,,,,false,Backend server configuration,app_config.hpp
 connection,AppConfig,ConnectionConfig,,,,false,Connection settings,app_config.hpp

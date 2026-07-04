@@ -8,6 +8,7 @@ from pathlib import Path
 from .config import GeneratorConfig
 from .cpp_gen import (
     _make_enum_def,
+    _make_enum_specialization,
     _make_header_preamble,
     _make_schema_version_constant,
     _make_source_preamble,
@@ -196,7 +197,7 @@ class CodeGenerator:
         lines.extend(self._ns_open())
         lines.append("")
 
-        # Emit enums belonging to this file group
+        # Emit enums belonging to this file group (enum class inside namespace)
         enum_defs = self._enums_for_file(hpp_name)
         if enum_defs:
             for ed in enum_defs:
@@ -230,6 +231,14 @@ class CodeGenerator:
             lines.append(_make_validate_decl(struct_name))
             lines.append("")
         lines.extend(self._ns_close())
+
+        # Emit iguana::enum_value specializations after namespace close
+        if enum_defs:
+            lines.append("")
+            for ed in enum_defs:
+                lines.append(_make_enum_specialization(ed, self._namespace))
+                lines.append("")
+
         return "\n".join(lines)
 
     def _build_file_group_source(self, hpp_name: str,
@@ -322,6 +331,14 @@ class CodeGenerator:
             lines.append(_make_validate_decl(gname))
             lines.append("")
         lines.extend(self._ns_close())
+
+        # Emit iguana::enum_value specializations after namespace close
+        if has_enums:
+            lines.append("")
+            for ed in self.model.enums.values():
+                lines.append(_make_enum_specialization(ed, self._namespace))
+                lines.append("")
+
         return "\n".join(lines)
 
     def _build_monolithic_source_content(self) -> str:
@@ -393,6 +410,14 @@ class CodeGenerator:
         lines.append(_make_validate_decl(struct_name))
         lines.append("")
         lines.extend(self._ns_close())
+
+        # Emit iguana::enum_value specializations after namespace close
+        if enum_defs:
+            lines.append("")
+            for ed in enum_defs:
+                lines.append(_make_enum_specialization(ed, self._namespace))
+                lines.append("")
+
         return "\n".join(lines)
 
     def _build_struct_source_content(self, gname: str, hpp_name: str) -> str:

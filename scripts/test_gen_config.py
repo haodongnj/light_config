@@ -523,7 +523,7 @@ def test_enum_value_specialization_emitted() -> None:
         "level,MyConfig,LogLevel,info,,,false,Log level\n"
     )
     _, hpp = _generate(csv_text)
-    check("enum_value<LogLevel>" in hpp,
+    check("iguana::enum_value<LogLevel>" in hpp,
           "enum_value specialization emitted")
     check("#include <array>" in hpp,
           "#include <array> emitted for enum def")

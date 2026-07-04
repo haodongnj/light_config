@@ -4,8 +4,8 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : 43479ebf9bb98259af465af70bfb8e6c
-///   generated_at   : 2026-07-03T00:31:23.666215+00:00
+///   csv_md5        : a75c3b990d9070d6b5e7a3dd8ec5bb60
+///   generated_at   : 2026-07-04T10:16:12.761500+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -15,31 +15,31 @@
 
 namespace app {
 
-light_config::LoadResult validate_AppConfig(const AppConfig &cfg) {
-  std::vector<std::string> errors;
-  {
-    auto r = validate_ServerConfig(cfg.server);
-    if (!r.ok()) {
-      errors.push_back("server: " + r.message);
+light_config::LoadResult validate_AppConfig(const AppConfig& cfg) {
+    std::vector<std::string> errors;
+    {
+        auto r = validate_ServerConfig(cfg.server);
+        if (!r.ok()) {
+            errors.push_back("server: " + r.message);
+        }
     }
-  }
-  {
-    auto r = validate_ConnectionConfig(cfg.connection);
-    if (!r.ok()) {
-      errors.push_back("connection: " + r.message);
+    {
+        auto r = validate_ConnectionConfig(cfg.connection);
+        if (!r.ok()) {
+            errors.push_back("connection: " + r.message);
+        }
     }
-  }
-  if (errors.empty()) {
-    return light_config::LoadResult::success();
-  }
+    if (errors.empty()) {
+        return light_config::LoadResult::success();
+    }
 
-  std::ostringstream summary;
-  summary << errors.size() << " validation error(s)";
-  for (const auto &e : errors) {
-    summary << "\n  " << e;
-  }
-  return light_config::LoadResult::failure(
-      light_config::ErrorCode::kValidationError, summary.str());
+    std::ostringstream summary;
+    summary << errors.size() << " validation error(s)";
+    for (const auto& e : errors) {
+        summary << "\n  " << e;
+    }
+    return light_config::LoadResult::failure(light_config::ErrorCode::kValidationError,
+                                             summary.str());
 }
 
-} // namespace app
+}  // namespace app
