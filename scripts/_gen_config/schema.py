@@ -331,8 +331,9 @@ class SchemaModel:
                     for col in ("min", "max"):
                         if (row.get(col) or "").strip():
                             where = _row_location(row)
+                            field = row["field_name"].strip()
                             raise GeneratorError(
-                                f"{where} field '{row["field_name"].strip()}' "
+                                f"{where} field '{field}' "
                                 f"has '{col}' constraint on enum type "
                                 f"'{csv_type}' — min/max are not supported on enums."
                             )
