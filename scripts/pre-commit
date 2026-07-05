@@ -10,11 +10,19 @@
 set -euo pipefail
 
 GIT_ROOT="$(git rev-parse --show-toplevel)"
-CLANG_FORMAT="$(command -v clang-format || true)"
-if [ -z "$CLANG_FORMAT" ]; then
-    echo "WARNING: clang-format not found — skipping automatic formatting." >&2
-    echo "  Install: sudo apt install clang-format        (Ubuntu/Debian)" >&2
-    echo "           brew install clang-format             (macOS)" >&2
+# Hard-coded to clang-format-14 to match CI (ubuntu-22.04).
+# Override by setting LIGHT_CONFIG_CLANG_FORMAT in your environment.
+CLANG_FORMAT="${LIGHT_CONFIG_CLANG_FORMAT:-clang-format-14}"
+# clang-format-14 is not on PATH by default on macOS Homebrew; try known location.
+if [ -z "${LIGHT_CONFIG_CLANG_FORMAT:-}" ] && ! command -v "$CLANG_FORMAT" >/dev/null 2>&1; then
+    if [ -f "/opt/homebrew/opt/llvm@14/bin/clang-format" ]; then
+        CLANG_FORMAT="/opt/homebrew/opt/llvm@14/bin/clang-format"
+    fi
+fi
+if ! command -v "$CLANG_FORMAT" >/dev/null 2>&1; then
+    echo "WARNING: clang-format-14 not found — skipping automatic formatting." >&2
+    echo "  Install: sudo apt install clang-format-14        (Ubuntu 22.04)" >&2
+    echo "           brew install llvm@14                     (macOS)" >&2
     exit 0
 fi
 

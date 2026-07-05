@@ -15,8 +15,7 @@
 
 namespace app {
 
-light_config::LoadResult validate_ServerConfig(
-    const ServerConfig& cfg) {
+light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
     std::vector<std::string> errors;
     /*
      * [sample_config.csv:14]
@@ -61,13 +60,11 @@ light_config::LoadResult validate_ServerConfig(
     for (const auto& e : errors) {
         summary << "\n  " << e;
     }
-    return light_config::LoadResult::failure(
-        light_config::ErrorCode::kValidationError, summary.str());
+    return light_config::LoadResult::failure(light_config::ErrorCode::kValidationError,
+                                             summary.str());
 }
 
-
-light_config::LoadResult validate_ConnectionConfig(
-    const ConnectionConfig& cfg) {
+light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) {
     std::vector<std::string> errors;
     /*
      * [sample_config.csv:17]
@@ -129,9 +126,8 @@ light_config::LoadResult validate_ConnectionConfig(
     for (const auto& e : errors) {
         summary << "\n  " << e;
     }
-    return light_config::LoadResult::failure(
-        light_config::ErrorCode::kValidationError, summary.str());
+    return light_config::LoadResult::failure(light_config::ErrorCode::kValidationError,
+                                             summary.str());
 }
 
-
-} // namespace app
+}  // namespace app

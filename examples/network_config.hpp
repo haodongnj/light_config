@@ -12,10 +12,12 @@
 /// -----------------------
 
 #include <light_config/light_config.hpp>
-#include <string>
-#include <vector>
+
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <vector>
+
 #include <array>
 /*
  * [network_config.hpp:__enum__ row]
@@ -42,8 +44,6 @@ template <>
 struct iguana::enum_value<Protocol> {
     constexpr static std::array<int, 3> value = {80, 443, 22};
 };
-
-
 
 namespace app {
 
@@ -179,7 +179,8 @@ struct ConnectionConfig {
     // Allowed TLS cipher names (optional)
     std::optional<std::vector<std::string>> allowed_ciphers;
 };
-YLT_REFL(ConnectionConfig, protocol, max_connections, timeout_sec, cert_file, retry_times, allowed_ciphers);
+YLT_REFL(ConnectionConfig, protocol, max_connections, timeout_sec, cert_file, retry_times,
+         allowed_ciphers);
 
 /// Schema version declared in the CSV __metadata__ row.
 constexpr std::string_view kServerConfigSchemaVersion{"1.0.0"};
@@ -197,4 +198,4 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg);
 /// kValidationError with detail on failure.
 light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg);
 
-} // namespace app
+}  // namespace app
