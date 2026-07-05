@@ -2,7 +2,7 @@
 
 A header-only C++17 library for loading JSON/YAML config files into structs with
 zero hand-written parsing code. Built on [yalantinglibs](https://github.com/alibaba/yalantinglibs)
-(vendored 0.6.0).
+(vendored 0.6.1).
 
 ```cpp
 struct MyConfig {

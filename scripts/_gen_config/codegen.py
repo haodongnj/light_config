@@ -41,7 +41,7 @@ class CodeGenerator:
         self._root_hpp_name, self._root_cpp_name = _derive_filenames(
             config, self._struct_name
         )
-        self._include_header = config.include_header or self._root_hpp_name
+        self._include_header = self._root_hpp_name
         # Resolve namespace: CLI flag > __metadata__ > empty (back-compat)
         self._namespace = (
             config.namespace
@@ -66,13 +66,14 @@ class CodeGenerator:
 
     def generate_all(self) -> None:
         """Generate all output files in one shot."""
-        if self.model.has_explicit_hpp_file:
-            self._generate_csv_driven()
-        elif self.config.per_struct:
-            self._generate_per_struct()
-        else:
-            self.generate_header()
-            self.generate_source()
+        if not self.config.samples_only:
+            if self.model.has_explicit_hpp_file:
+                self._generate_csv_driven()
+            elif self.config.per_struct:
+                self._generate_per_struct()
+            else:
+                self.generate_header()
+                self.generate_source()
         if self.config.generate_samples:
             self.generate_samples()
         n_fields = sum(len(v) for v in self.model.group_regular.values())
@@ -276,10 +277,7 @@ class CodeGenerator:
 
         for gname in self.model.ordered_groups:
             is_root = (gname == self.model.root)
-            if is_root and self.config.hpp_name:
-                hpp_name = self.config.hpp_name
-                cpp_name = _hpp_to_cpp_name(hpp_name)
-            elif is_root and self.config.struct_name:
+            if is_root and self.config.struct_name:
                 snake = _to_snake_case(self.config.struct_name)
                 hpp_name = f"{snake}.hpp"
                 cpp_name = f"{snake}.cpp"

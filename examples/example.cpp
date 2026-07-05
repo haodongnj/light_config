@@ -185,12 +185,12 @@ connection:
 
     // ---- Full valid JSON file: validates library end-to-end ----
     // Uses examples/valid_config.json, which has every field populated.
-    // Relative path from the build directory; adjust if running elsewhere.
+    // Resolve relative to this source file (__FILE__), regardless of CWD.
     {
-        constexpr const char* kConfigPath = "../examples/valid_config.json";
+        auto path = (std::filesystem::path(__FILE__).parent_path() / "valid_config.json").string();
 
         AppConfig cfg;
-        auto r = light_config::load(cfg, kConfigPath, light_config::Format::Auto);
+        auto r = light_config::load(cfg, path, light_config::Format::Auto);
         assert(r.ok());
 
         // Top-level fields
@@ -225,12 +225,12 @@ connection:
 
     // ---- Full valid YAML file: validates library end-to-end ----
     // Uses examples/valid_config.yaml, which has every field populated.
-    // Relative path from the build directory; adjust if running elsewhere.
+    // Resolve relative to this source file (__FILE__), regardless of CWD.
     {
-        constexpr const char* kConfigPath = "../examples/valid_config.yaml";
+        auto path = (std::filesystem::path(__FILE__).parent_path() / "valid_config.yaml").string();
 
         AppConfig cfg;
-        auto r = light_config::load(cfg, kConfigPath, light_config::Format::Auto);
+        auto r = light_config::load(cfg, path, light_config::Format::Auto);
         assert(r.ok());
 
         // Top-level fields

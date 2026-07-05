@@ -6,14 +6,14 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : 5a649f642620b504f2ac316957b7327a
-///   generated_at   : 2026-07-04T14:38:19.799427+00:00
+///   csv_md5        : 9bd084c1c88cb838bf8cd819e637de54
+///   generated_at   : 2026-07-05T02:25:23.039203+00:00
 ///   generator      : light_config
 /// -----------------------
 
 #include <light_config/light_config.hpp>
 
-#include "network.hpp"
+#include "network_config.hpp"
 
 #include <optional>
 #include <string>

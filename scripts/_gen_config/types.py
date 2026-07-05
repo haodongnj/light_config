@@ -159,17 +159,10 @@ def _derive_filenames(config: GeneratorConfig, struct_name: str) -> tuple[str, s
     """Return (hpp_filename, cpp_filename) based on config and struct name.
 
     In per-struct mode each struct uses auto-derived names.  Otherwise,
-    when config.hpp_name is set it acts as the canonical header name;
-    the cpp stem is derived by replacing the last extension with .cpp.
-    When config.hpp_name is unset, both names are derived from the snake-cased
-    struct name.
+    both names are derived from the snake-cased struct name.
     """
     if config.per_struct:
         return _struct_to_hpp_name(struct_name), _struct_to_cpp_name(struct_name)
-    if config.hpp_name:
-        hpp_stem = Path(config.hpp_name)
-        cpp_stem = hpp_stem.with_suffix(".cpp")
-        return str(hpp_stem), str(cpp_stem)
     snake = _to_snake_case(struct_name)
     return f"{snake}.hpp", f"{snake}.cpp"
 
