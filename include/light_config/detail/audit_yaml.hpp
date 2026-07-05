@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "light_config/load_result.hpp"
+#include "light_config/result.hpp"
 
 namespace light_config {
 namespace detail {

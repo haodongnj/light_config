@@ -8,7 +8,7 @@
 
 #include "light_config/detail/audit_yaml.hpp"
 #include "light_config/detail/file_utils.hpp"
-#include "light_config/load_result.hpp"
+#include "light_config/result.hpp"
 #include <fstream>
 
 namespace light_config {
@@ -26,9 +26,9 @@ namespace light_config {
 /// \tparam T  A struct annotated with YLT_REFL.
 /// \param[out] config  Populated config struct.
 /// \param[in]  path    Path to the YAML file.
-/// \return     LoadResult with code==kOk and field audit on success.
+/// \return     Result with code==kOk and field audit on success.
 template <typename T>
-LoadResult load_from_yaml_file(T& config, const std::string& path) {
+Result load_from_yaml_file(T& config, const std::string& path) {
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -39,10 +39,10 @@ LoadResult load_from_yaml_file(T& config, const std::string& path) {
     try {
         iguana::from_yaml(config, content);
     } catch (const std::exception& e) {
-        return LoadResult::failure(ErrorCode::kYamlParseError, e.what());
+        return Result::failure(ErrorCode::kYamlParseError, e.what());
     }
 
-    auto result = LoadResult::success();
+    auto result = Result::success();
 
     // Recursive audit of optional fields.
     detail::audit_yaml_recursive(config, result.absent_optionals, result.present_fields);
@@ -52,14 +52,14 @@ LoadResult load_from_yaml_file(T& config, const std::string& path) {
 
 /// Load a YAML string into a struct with optional-field audit.
 template <typename T>
-LoadResult load_from_yaml_string(T& config, const std::string& yaml_str) {
+Result load_from_yaml_string(T& config, const std::string& yaml_str) {
     try {
         iguana::from_yaml(config, yaml_str);
     } catch (const std::exception& e) {
-        return LoadResult::failure(ErrorCode::kYamlParseError, e.what());
+        return Result::failure(ErrorCode::kYamlParseError, e.what());
     }
 
-    auto result = LoadResult::success();
+    auto result = Result::success();
 
     detail::audit_yaml_recursive(config, result.absent_optionals, result.present_fields);
 
@@ -73,8 +73,8 @@ LoadResult load_from_yaml_string(T& config, const std::string& yaml_str) {
 /// common case (unquoted scalar on its own line) but not quoted strings or
 /// flow-style mappings.  For strict checking, use the JSON format.
 template <typename T>
-LoadResult load_from_yaml_string(T& config, const std::string& yaml_str,
-                                 std::string_view expected_schema_version) {
+Result load_from_yaml_string(T& config, const std::string& yaml_str,
+                             std::string_view expected_schema_version) {
     if (!expected_schema_version.empty()) {
         // Best-effort check: look for `$schema: <value>` on a line.
         auto pos = yaml_str.find("$schema:");
@@ -92,7 +92,7 @@ LoadResult load_from_yaml_string(T& config, const std::string& yaml_str,
                     auto msg = std::string("expected schema version '")
                                + std::string(expected_schema_version) + "' but file has '"
                                + found_ver + "'";
-                    return LoadResult::failure(ErrorCode::kSchemaMismatch, std::move(msg));
+                    return Result::failure(ErrorCode::kSchemaMismatch, std::move(msg));
                 }
             }
         }
@@ -105,8 +105,8 @@ LoadResult load_from_yaml_string(T& config, const std::string& yaml_str,
 
 /// Load a YAML file with optional schema version check.
 template <typename T>
-LoadResult load_from_yaml_file(T& config, const std::string& path,
-                               std::string_view expected_schema_version) {
+Result load_from_yaml_file(T& config, const std::string& path,
+                           std::string_view expected_schema_version) {
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -147,25 +147,25 @@ std::optional<std::string> to_yaml(const T& config) {
 /// \tparam T  A struct annotated with YLT_REFL.
 /// \param[in] config  The config struct to serialize.
 /// \param[in] path    Path to the output YAML file.
-/// \return  LoadResult with code==kOk on success; kYamlSerializeError or
+/// \return  Result with code==kOk on success; kYamlSerializeError or
 ///          kFileWriteError on failure.
 template <typename T>
-LoadResult save_to_yaml_file(const T& config, const std::string& path) {
+Result save_to_yaml_file(const T& config, const std::string& path) {
     auto yaml_opt = to_yaml(config);
     if (!yaml_opt.has_value()) {
-        return LoadResult::failure(ErrorCode::kYamlSerializeError,
-                                   "failed to serialize config to YAML");
+        return Result::failure(ErrorCode::kYamlSerializeError,
+                               "failed to serialize config to YAML");
     }
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
     if (!file) {
-        return LoadResult::failure(ErrorCode::kFileWriteError, path);
+        return Result::failure(ErrorCode::kFileWriteError, path);
     }
     file << yaml_opt.value();
     file.close();
     if (!file.good()) {
-        return LoadResult::failure(ErrorCode::kFileWriteError, path);
+        return Result::failure(ErrorCode::kFileWriteError, path);
     }
-    return LoadResult::success();
+    return Result::success();
 }
 
 }  // namespace light_config

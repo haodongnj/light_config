@@ -5,7 +5,7 @@
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
 ///   csv_md5        : 9bd084c1c88cb838bf8cd819e637de54
-///   generated_at   : 2026-07-05T02:25:23.039203+00:00
+///   generated_at   : 2026-07-05T04:54:20.069712+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -15,7 +15,7 @@
 
 namespace app {
 
-light_config::LoadResult validate_AppConfig(const AppConfig& cfg) {
+light_config::Result validate_AppConfig(const AppConfig& cfg) {
     std::vector<std::string> errors;
     {
         auto r = validate_ServerConfig(cfg.server);
@@ -30,7 +30,7 @@ light_config::LoadResult validate_AppConfig(const AppConfig& cfg) {
         }
     }
     if (errors.empty()) {
-        return light_config::LoadResult::success();
+        return light_config::Result::success();
     }
 
     std::ostringstream summary;
@@ -38,8 +38,7 @@ light_config::LoadResult validate_AppConfig(const AppConfig& cfg) {
     for (const auto& e : errors) {
         summary << "\n  " << e;
     }
-    return light_config::LoadResult::failure(light_config::ErrorCode::kValidationError,
-                                             summary.str());
+    return light_config::Result::failure(light_config::ErrorCode::kValidationError, summary.str());
 }
 
 }  // namespace app

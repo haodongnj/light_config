@@ -39,13 +39,13 @@ inline Format detect_format(const std::string& path) {
 /// `.yaml` / `.yml` → YAML; `.json` → JSON; unrecognized extension →
 /// kUnrecognizedFormat error.
 template <typename T>
-LoadResult load(T& config, const std::string& path, Format format = Format::Auto) {
+Result load(T& config, const std::string& path, Format format = Format::Auto) {
     if (format == Format::Auto) {
         format = detect_format(path);
     }
     if (format == Format::Auto) {
-        return LoadResult::failure(ErrorCode::kUnrecognizedFormat,
-                                   "cannot determine format from file extension '" + path + "'");
+        return Result::failure(ErrorCode::kUnrecognizedFormat,
+                               "cannot determine format from file extension '" + path + "'");
     }
     if (format == Format::Yaml) {
         return load_from_yaml_file(config, path);
@@ -61,14 +61,14 @@ LoadResult load(T& config, const std::string& path, Format format = Format::Auto
 /// preserves backward compatibility — existing callers that don't use
 /// schema versioning are unaffected.
 template <typename T>
-LoadResult load_versioned(T& config, const std::string& path,
-                          std::string_view expected_schema_version, Format format = Format::Auto) {
+Result load_versioned(T& config, const std::string& path, std::string_view expected_schema_version,
+                      Format format = Format::Auto) {
     if (format == Format::Auto) {
         format = detect_format(path);
     }
     if (format == Format::Auto) {
-        return LoadResult::failure(ErrorCode::kUnrecognizedFormat,
-                                   "cannot determine format from file extension '" + path + "'");
+        return Result::failure(ErrorCode::kUnrecognizedFormat,
+                               "cannot determine format from file extension '" + path + "'");
     }
     if (format == Format::Yaml) {
         return load_from_yaml_file(config, path, expected_schema_version);

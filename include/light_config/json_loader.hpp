@@ -8,7 +8,7 @@
 
 #include "light_config/detail/audit_json.hpp"
 #include "light_config/detail/file_utils.hpp"
-#include "light_config/load_result.hpp"
+#include "light_config/result.hpp"
 #include <fstream>
 
 namespace light_config {
@@ -29,17 +29,17 @@ namespace light_config {
 /// \param[out] config  Populated config struct.
 /// \param[in]  path    Path to the JSON file.
 /// \param[in]  expected_schema_version  If non-empty, check `$schema` key.
-/// \return     LoadResult with code==kOk and field audit on success.
+/// \return     Result with code==kOk and field audit on success.
 template <typename T>
-LoadResult load_from_json_file(T& config, const std::string& path,
-                               std::string_view expected_schema_version = "") {
+Result load_from_json_file(T& config, const std::string& path,
+                           std::string_view expected_schema_version = "") {
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
         return r;
     }
 
-    auto result = LoadResult::success();
+    auto result = Result::success();
 
     // ---- Optional-field audit via recursive DOM walk ----
     try {
@@ -56,7 +56,7 @@ LoadResult load_from_json_file(T& config, const std::string& path,
                     auto msg = std::string("expected schema version '")
                                + std::string(expected_schema_version) + "' but file has '"
                                + file_ver + "'";
-                    return LoadResult::failure(ErrorCode::kSchemaMismatch, std::move(msg));
+                    return Result::failure(ErrorCode::kSchemaMismatch, std::move(msg));
                 }
             }
             // $schema absent or non-string → no error (permissive by default)
@@ -64,14 +64,14 @@ LoadResult load_from_json_file(T& config, const std::string& path,
 
         detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
     } catch (const std::exception& e) {
-        return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
+        return Result::failure(ErrorCode::kJsonParseError, e.what());
     }
 
     // ---- Actual struct population ----
     try {
         iguana::from_json(config, content.begin(), content.end());
     } catch (const std::exception& e) {
-        return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
+        return Result::failure(ErrorCode::kJsonDeserializeError, e.what());
     }
 
     return result;
@@ -85,9 +85,9 @@ LoadResult load_from_json_file(T& config, const std::string& path,
 /// kSchemaMismatch.  If `"$schema"` is absent, loading proceeds (the check
 /// is advisory — callers that require the key should verify separately).
 template <typename T>
-LoadResult load_from_json_string(T& config, const std::string& json_str,
-                                 std::string_view expected_schema_version = "") {
-    auto result = LoadResult::success();
+Result load_from_json_string(T& config, const std::string& json_str,
+                             std::string_view expected_schema_version = "") {
+    auto result = Result::success();
 
     // ---- Optional-field audit via recursive DOM walk ----
     try {
@@ -104,7 +104,7 @@ LoadResult load_from_json_string(T& config, const std::string& json_str,
                     auto msg = std::string("expected schema version '")
                                + std::string(expected_schema_version) + "' but file has '"
                                + file_ver + "'";
-                    return LoadResult::failure(ErrorCode::kSchemaMismatch, std::move(msg));
+                    return Result::failure(ErrorCode::kSchemaMismatch, std::move(msg));
                 }
             }
             // $schema absent or non-string → no error (permissive by default)
@@ -112,14 +112,14 @@ LoadResult load_from_json_string(T& config, const std::string& json_str,
 
         detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
     } catch (const std::exception& e) {
-        return LoadResult::failure(ErrorCode::kJsonParseError, e.what());
+        return Result::failure(ErrorCode::kJsonParseError, e.what());
     }
 
     // ---- Actual struct population ----
     try {
         iguana::from_json(config, json_str);
     } catch (const std::exception& e) {
-        return LoadResult::failure(ErrorCode::kJsonDeserializeError, e.what());
+        return Result::failure(ErrorCode::kJsonDeserializeError, e.what());
     }
 
     return result;
@@ -163,25 +163,25 @@ std::optional<std::string> to_json(const T& config, bool pretty = false) {
 /// \param[in] config  The config struct to serialize.
 /// \param[in] path    Path to the output JSON file.
 /// \param[in] pretty  If true, produce indented/pretty JSON (default: true).
-/// \return  LoadResult with code==kOk on success; kJsonSerializeError or
+/// \return  Result with code==kOk on success; kJsonSerializeError or
 ///          kFileWriteError on failure.
 template <typename T>
-LoadResult save_to_json_file(const T& config, const std::string& path, bool pretty = true) {
+Result save_to_json_file(const T& config, const std::string& path, bool pretty = true) {
     auto json_opt = to_json(config, pretty);
     if (!json_opt.has_value()) {
-        return LoadResult::failure(ErrorCode::kJsonSerializeError,
-                                   "failed to serialize config to JSON");
+        return Result::failure(ErrorCode::kJsonSerializeError,
+                               "failed to serialize config to JSON");
     }
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
     if (!file) {
-        return LoadResult::failure(ErrorCode::kFileWriteError, path);
+        return Result::failure(ErrorCode::kFileWriteError, path);
     }
     file << json_opt.value();
     file.close();
     if (!file.good()) {
-        return LoadResult::failure(ErrorCode::kFileWriteError, path);
+        return Result::failure(ErrorCode::kFileWriteError, path);
     }
-    return LoadResult::success();
+    return Result::success();
 }
 
 }  // namespace light_config

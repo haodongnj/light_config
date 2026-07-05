@@ -31,7 +31,7 @@ CMake 3.16+, C++17 required. See [docs/setup-ubuntu-22.04.md](docs/setup-ubuntu-
 
 ## API
 
-All functions return `LoadResult` (`.code`, `.message`, `.absent_optionals`, `.present_fields`, `.ok()`).
+All functions return `Result` (`.code`, `.message`, `.absent_optionals`, `.present_fields`, `.ok()`).
 
 ### Loading
 
@@ -55,8 +55,8 @@ key is checked and mismatches return `ErrorCode::kSchemaMismatch`. The convenien
 |---|---|
 | `to_json(cfg, pretty=false)` | `std::optional<std::string>` |
 | `to_yaml(cfg)` | `std::optional<std::string>` |
-| `save_to_json_file(cfg, path, pretty=true)` | `LoadResult` |
-| `save_to_yaml_file(cfg, path)` | `LoadResult` |
+| `save_to_json_file(cfg, path, pretty=true)` | `Result` |
+| `save_to_yaml_file(cfg, path)` | `Result` |
 
 ### Optional-field audit
 
