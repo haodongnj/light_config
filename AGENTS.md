@@ -6,7 +6,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 **light_config** — a header-only C++17 library that loads JSON/YAML config files into
 `YLT_REFL`-annotated structs with zero hand-written parsing code. Built on vendored
-[yalantinglibs](https://github.com/alibaba/yalantinglibs) 0.6.0 (`third_party/yalantinglibs/`,
+[yalantinglibs](https://github.com/alibaba/yalantinglibs) 0.6.1 (`third_party/yalantinglibs/`,
 `YLT_VERSION 600`). Also includes a CSV-driven struct-and-validator code generator
 (`scripts/gen_config.py`).
 
@@ -80,7 +80,7 @@ were absent vs. present (JSON only; YAML has no DOM audit).
 
 ### Vendored dependency
 
-yalantinglibs 0.6.0 lives at `third_party/yalantinglibs/` (header-only subset). The relevant
+yalantinglibs 0.6.1 lives at `third_party/yalantinglibs/` (header-only subset). The relevant
 include paths are configured as SYSTEM includes on the `light_config` INTERFACE target.
 Used libraries: `struct_json` (reader + writer via `iguana`), `struct_yaml` (reader + writer
 via `iguana`), `reflection` (`YLT_REFL`, `for_each`).
