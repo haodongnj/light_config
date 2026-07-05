@@ -7,7 +7,7 @@
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
 ///   csv_md5        : 9bd084c1c88cb838bf8cd819e637de54
-///   generated_at   : 2026-07-05T02:25:23.039203+00:00
+///   generated_at   : 2026-07-05T04:54:20.069712+00:00
 ///   generator      : light_config
 /// -----------------------
 
@@ -191,11 +191,11 @@ constexpr std::string_view kConnectionConfigSchemaVersion{"1.0.0"};
 /// Validate range constraints defined in the CSV schema.
 /// Returns light_config::ErrorCode::kOk on success,
 /// kValidationError with detail on failure.
-light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg);
+light_config::Result validate_ServerConfig(const ServerConfig& cfg);
 
 /// Validate range constraints defined in the CSV schema.
 /// Returns light_config::ErrorCode::kOk on success,
 /// kValidationError with detail on failure.
-light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg);
+light_config::Result validate_ConnectionConfig(const ConnectionConfig& cfg);
 
 }  // namespace app

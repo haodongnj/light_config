@@ -191,7 +191,7 @@ def _make_validate_decl(struct_name: str) -> str:
     return f"""/// Validate range constraints defined in the CSV schema.
 /// Returns light_config::ErrorCode::kOk on success,
 /// kValidationError with detail on failure.
-light_config::LoadResult validate_{struct_name}(const {struct_name}& cfg);"""
+light_config::Result validate_{struct_name}(const {struct_name}& cfg);"""
 
 
 def _make_schema_version_constant(struct_name: str, version: str) -> str:
@@ -315,19 +315,19 @@ def _make_validate_impl(
         has_validation = True
 
     if not has_validation:
-        return f"""light_config::LoadResult validate_{struct_name}(
+        return f"""light_config::Result validate_{struct_name}(
     const {struct_name}& /*cfg*/) {{
-    return light_config::LoadResult::success();
+    return light_config::Result::success();
 }}
 """
 
     body = "\n".join(checks)
-    return f"""light_config::LoadResult validate_{struct_name}(
+    return f"""light_config::Result validate_{struct_name}(
     const {struct_name}& cfg) {{
     std::vector<std::string> errors;
 {body}
     if (errors.empty()) {{
-        return light_config::LoadResult::success();
+        return light_config::Result::success();
     }}
 
     std::ostringstream summary;
@@ -335,7 +335,7 @@ def _make_validate_impl(
     for (const auto& e : errors) {{
         summary << "\\n  " << e;
     }}
-    return light_config::LoadResult::failure(
+    return light_config::Result::failure(
         light_config::ErrorCode::kValidationError, summary.str());
 }}
 """

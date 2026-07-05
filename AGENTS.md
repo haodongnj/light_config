@@ -55,7 +55,7 @@ Four header files, all in `namespace light_config`:
 
 | File | What it exposes |
 |---|---|
-| `load_result.hpp` | `ErrorCode` enum, `Format` enum, `LoadResult` struct, `error_code_message()`, `detail::is_optional` trait |
+| `result.hpp` | `ErrorCode` enum, `Format` enum, `Result` struct, `error_code_message()`, `detail::is_optional` trait |
 | `json_loader.hpp` | `load_from_json_file()`, `load_from_json_string()`, `to_json()`, `save_to_json_file()` |
 | `yaml_loader.hpp` | `load_from_yaml_file()`, `load_from_yaml_string()`, `to_yaml()`, `save_to_yaml_file()` |
 | `light_config.hpp` | `load()` (auto-detect format), `load_versioned()` (schema-version-gated) — plus re-exports everything above |

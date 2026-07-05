@@ -94,11 +94,11 @@ enum class Format {
     Yaml   ///< YAML format (uses iguana::from_yaml).
 };
 
-/// Result of loading a config file.
+/// Result of a config operation (load, save, validate, etc.).
 ///
 /// On success: code == kOk, absent_optionals and present_fields are populated.
 /// On failure: code != kOk, message carries detail suitable for logging.
-struct LoadResult {
+struct Result {
     ErrorCode code = ErrorCode::kOk;
 
     /// Human-readable detail. Set when code != kOk; may be empty.
@@ -120,13 +120,13 @@ struct LoadResult {
     std::vector<std::string> present_fields;
 
     /// Factory: success result.
-    static LoadResult success() {
-        return LoadResult{};
+    static Result success() {
+        return Result{};
     }
 
     /// Factory: failure with an error code and optional message.
-    static LoadResult failure(ErrorCode c, std::string msg = "") {
-        LoadResult r;
+    static Result failure(ErrorCode c, std::string msg = "") {
+        Result r;
         r.code = c;
         r.message = std::move(msg);
         return r;
