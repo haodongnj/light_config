@@ -16,10 +16,10 @@ class GeneratorConfig:
     hpp_dir: Optional[str] = None
     src_dir: Optional[str] = None
     struct_name: str = ""
-    hpp_name: Optional[str] = None
     namespace: str = ""
     per_struct: bool = False
     generate_samples: bool = False
+    samples_only: bool = False
     schema_version_override: Optional[str] = None
 
     # -- derived helpers ---------------------------------------------------
@@ -35,8 +35,3 @@ class GeneratorConfig:
     @property
     def effective_samples_dir(self) -> Path:
         return Path(self.output_dir)
-
-    @property
-    def include_header(self) -> str:
-        """Header file name to emit in `#include` directives of the source file."""
-        return self.hpp_name or ""

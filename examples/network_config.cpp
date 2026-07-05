@@ -4,18 +4,19 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : 5a649f642620b504f2ac316957b7327a
-///   generated_at   : 2026-07-04T14:38:19.799427+00:00
+///   csv_md5        : 9bd084c1c88cb838bf8cd819e637de54
+///   generated_at   : 2026-07-05T02:25:23.039203+00:00
 ///   generator      : light_config
 /// -----------------------
 
-#include "network.hpp"
+#include "network_config.hpp"
 
 #include <sstream>
 
 namespace app {
 
-light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
+light_config::LoadResult validate_ServerConfig(
+    const ServerConfig& cfg) {
     std::vector<std::string> errors;
     /*
      * [sample_config.csv:14]
@@ -27,7 +28,7 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
      *   max         : 65535
      *   optional    : false
      *   description : Listening port
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     if (cfg.port < 1024 || cfg.port > 65535) {
         std::ostringstream oss;
@@ -44,7 +45,7 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
      *   max         : 4096
      *   optional    : false
      *   description : TCP listen backlog
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     if (cfg.backlog < 1 || cfg.backlog > 4096) {
         std::ostringstream oss;
@@ -60,11 +61,13 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg) {
     for (const auto& e : errors) {
         summary << "\n  " << e;
     }
-    return light_config::LoadResult::failure(light_config::ErrorCode::kValidationError,
-                                             summary.str());
+    return light_config::LoadResult::failure(
+        light_config::ErrorCode::kValidationError, summary.str());
 }
 
-light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) {
+
+light_config::LoadResult validate_ConnectionConfig(
+    const ConnectionConfig& cfg) {
     std::vector<std::string> errors;
     /*
      * [sample_config.csv:17]
@@ -76,7 +79,7 @@ light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) 
      *   max         : 100000
      *   optional    : false
      *   description : Max concurrent connections
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     if (cfg.max_connections < 1 || cfg.max_connections > 100000) {
         std::ostringstream oss;
@@ -93,7 +96,7 @@ light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) 
      *   max         : 86400
      *   optional    : false
      *   description : Connection timeout in seconds
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     if (cfg.timeout_sec < 0.5 || cfg.timeout_sec > 86400) {
         std::ostringstream oss;
@@ -110,7 +113,7 @@ light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) 
      *   max         : 10
      *   optional    : false
      *   description : Connection retry count
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     if (cfg.retry_times < 0 || cfg.retry_times > 10) {
         std::ostringstream oss;
@@ -126,8 +129,9 @@ light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg) 
     for (const auto& e : errors) {
         summary << "\n  " << e;
     }
-    return light_config::LoadResult::failure(light_config::ErrorCode::kValidationError,
-                                             summary.str());
+    return light_config::LoadResult::failure(
+        light_config::ErrorCode::kValidationError, summary.str());
 }
 
-}  // namespace app
+
+} // namespace app

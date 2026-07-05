@@ -94,15 +94,6 @@ def main() -> None:
         "(default: auto-detected from CSV root group).",
     )
     parser.add_argument(
-        "--hpp-name",
-        default=None,
-        help="Explicit .hpp filename (e.g. 'app_config.hpp').  Only used in "
-        "monolithic or --per-struct mode; ignored when CSV hpp_file column "
-        "is present.  When set, this name is used for the generated header, "
-        "the corresponding .cpp stem, and the #include directive in the source "
-        "file.",
-    )
-    parser.add_argument(
         "--per-struct",
         action="store_true",
         help="Generate one .hpp/.cpp pair per struct group instead of a single "
@@ -122,6 +113,12 @@ def main() -> None:
         help="Emit valid_config.json and valid_config.yaml into --output-dir.",
     )
     parser.add_argument(
+        "--samples-only",
+        action="store_true",
+        help="Only emit valid_config.json and valid_config.yaml "
+        "(implies --generate-samples, skips .hpp/.cpp generation).",
+    )
+    parser.add_argument(
         "--schema-version",
         default=None,
         help="Override the schema version recorded in the generated provenance "
@@ -136,10 +133,10 @@ def main() -> None:
         hpp_dir=args.hpp_dir,
         src_dir=args.src_dir,
         struct_name=args.struct_name,
-        hpp_name=args.hpp_name,
         namespace=args.namespace,
         per_struct=args.per_struct,
-        generate_samples=args.generate_samples,
+        generate_samples=args.generate_samples or args.samples_only,
+        samples_only=args.samples_only,
         schema_version_override=args.schema_version,
     )
     try:

@@ -6,32 +6,30 @@
 /// --- Schema provenance ---
 ///   schema_version : 1.0.0
 ///   source_csv     : sample_config.csv
-///   csv_md5        : 5a649f642620b504f2ac316957b7327a
-///   generated_at   : 2026-07-04T14:38:19.799427+00:00
+///   csv_md5        : 9bd084c1c88cb838bf8cd819e637de54
+///   generated_at   : 2026-07-05T02:25:23.039203+00:00
 ///   generator      : light_config
 /// -----------------------
 
 #include <light_config/light_config.hpp>
-
-#include <cstdint>
-#include <optional>
 #include <string>
 #include <vector>
-
+#include <cstdint>
+#include <optional>
 #include <array>
 /*
- * [network.hpp:__enum__ row]
+ * [network_config.hpp:__enum__ row]
  *   enum_name   : LogLevel
  *   enumerators : 4
- *   hpp_file    : network.hpp
+ *   hpp_file    : network_config.hpp
  */
 enum class LogLevel { debug = 0, info = 1, warn = 2, error = 3 };
 
 /*
- * [network.hpp:__enum__ row]
+ * [network_config.hpp:__enum__ row]
  *   enum_name   : Protocol
  *   enumerators : 3
- *   hpp_file    : network.hpp
+ *   hpp_file    : network_config.hpp
  */
 enum class Protocol { http = 80, https = 443, ssh = 22 };
 
@@ -44,6 +42,8 @@ template <>
 struct iguana::enum_value<Protocol> {
     constexpr static std::array<int, 3> value = {80, 443, 22};
 };
+
+
 
 namespace app {
 
@@ -58,7 +58,7 @@ struct ServerConfig {
      *   max         : 
      *   optional    : false
      *   description : IP address to bind
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // IP address to bind
     std::string host = "0.0.0.0";
@@ -72,7 +72,7 @@ struct ServerConfig {
      *   max         : 65535
      *   optional    : false
      *   description : Listening port
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // Listening port
     int32_t port = 8080;
@@ -86,7 +86,7 @@ struct ServerConfig {
      *   max         : 4096
      *   optional    : false
      *   description : TCP listen backlog
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // TCP listen backlog
     int32_t backlog = 128;
@@ -104,7 +104,7 @@ struct ConnectionConfig {
      *   max         : 
      *   optional    : false
      *   description : Network protocol
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // Network protocol
     Protocol protocol = Protocol::http;
@@ -118,7 +118,7 @@ struct ConnectionConfig {
      *   max         : 100000
      *   optional    : false
      *   description : Max concurrent connections
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // Max concurrent connections
     int32_t max_connections = 1000;
@@ -132,7 +132,7 @@ struct ConnectionConfig {
      *   max         : 86400
      *   optional    : false
      *   description : Connection timeout in seconds
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // Connection timeout in seconds
     double timeout_sec = 30.0;
@@ -146,7 +146,7 @@ struct ConnectionConfig {
      *   max         : 
      *   optional    : true
      *   description : TLS certificate file path (optional)
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // TLS certificate file path (optional)
     std::optional<std::string> cert_file;
@@ -160,7 +160,7 @@ struct ConnectionConfig {
      *   max         : 10
      *   optional    : false
      *   description : Connection retry count
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // Connection retry count
     int32_t retry_times = 3;
@@ -174,13 +174,12 @@ struct ConnectionConfig {
      *   max         : 
      *   optional    : true
      *   description : Allowed TLS cipher names (optional)
-     *   hpp_file    : network.hpp
+     *   hpp_file    : network_config.hpp
      */
     // Allowed TLS cipher names (optional)
     std::optional<std::vector<std::string>> allowed_ciphers;
 };
-YLT_REFL(ConnectionConfig, protocol, max_connections, timeout_sec, cert_file, retry_times,
-         allowed_ciphers);
+YLT_REFL(ConnectionConfig, protocol, max_connections, timeout_sec, cert_file, retry_times, allowed_ciphers);
 
 /// Schema version declared in the CSV __metadata__ row.
 constexpr std::string_view kServerConfigSchemaVersion{"1.0.0"};
@@ -198,4 +197,4 @@ light_config::LoadResult validate_ServerConfig(const ServerConfig& cfg);
 /// kValidationError with detail on failure.
 light_config::LoadResult validate_ConnectionConfig(const ConnectionConfig& cfg);
 
-}  // namespace app
+} // namespace app
