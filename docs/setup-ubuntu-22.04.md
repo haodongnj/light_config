@@ -35,7 +35,7 @@ cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
-If the build succeeds, you should see targets like `test_basic` and `example_json` compiled.
+If the build succeeds, you should see targets like `test_basic` and `example` compiled.
 
 ## Run Tests
 

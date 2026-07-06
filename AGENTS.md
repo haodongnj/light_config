@@ -24,8 +24,8 @@ cd build && ctest
 ./build/tests/test_basic
 
 # Build & run the example
-cmake --build build --target example_json
-./build/examples/example_json
+cmake --build build --target example
+./build/examples/example
 ```
 
 The library is **header-only** (`light_config` is an `INTERFACE` CMake target). Tests and
