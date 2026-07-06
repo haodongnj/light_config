@@ -2,13 +2,48 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug example_json",
-            "type": "lldb",
+            "name": "Debug example",
+            "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/examples/example_json",
+            "program": "${workspaceFolder}/build/examples/example",
             "args": [],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "CMake build"
+            "preLaunchTask": "CMake build",
+            "stopAtEntry": true,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set print pretty on",
+                    "text": "-gdb-set print pretty on",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable string limit (show full strings)",
+                    "text": "-gdb-set print elements 0",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable length limit for strings",
+                    "text": "-gdb-set max-value-size unlimited",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Load libstdc++ pretty-printers",
+                    "text": "python import sys; sys.path.insert(0, '/usr/share/gcc/python'); from libstdcxx.v6.printers import register_libstdcxx_printers; register_libstdcxx_printers(None)",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set charset to UTF-8",
+                    "text": "-gdb-set charset UTF-8",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
