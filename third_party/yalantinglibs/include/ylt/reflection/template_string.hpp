@@ -100,7 +100,7 @@ constexpr std::pair<bool, std::string_view> try_get_enum_name() {
 
   constexpr size_t pos_brackets = res.find(')');
 
-  size_t pos_colon = res.find("::");
+  size_t pos_colon = res.rfind("::");
   return {pos_brackets == std::string_view::npos,
           res.substr(pos_colon == std::string_view::npos ? 0 : pos_colon + 2)};
 }
