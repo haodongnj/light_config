@@ -24,7 +24,7 @@ if (!r.ok()) { /* r.code, r.message */ }
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ./build/tests/test_basic                    # unit tests
-./build/examples/example_json               # full example
+./build/examples/example                  # full example
 ```
 
 CMake 3.16+, C++17 required. See [docs/setup-ubuntu-22.04.md](docs/setup-ubuntu-22.04.md) for Ubuntu setup.
