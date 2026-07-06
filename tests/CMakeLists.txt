@@ -21,4 +21,11 @@ if(PYTHON3_EXE)
     add_test(NAME gen_config_stamp_emit
              COMMAND ${PYTHON3_EXE} ${CMAKE_SOURCE_DIR}/scripts/test_stamp_emit.py
              WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/scripts)
+    # Compiles the generated C++ for the full type matrix and rejects
+    # generator inputs that would emit non-compiling code (C1–C4, C7b).
+    # Requires a C++17 compiler on PATH; skips compile checks gracefully
+    # when none is present (rejection checks still run).
+    add_test(NAME gen_config_cpp_compile
+             COMMAND ${PYTHON3_EXE} ${CMAKE_SOURCE_DIR}/scripts/test_cpp_compile.py
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/scripts)
 endif()

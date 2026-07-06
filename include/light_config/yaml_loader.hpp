@@ -122,19 +122,26 @@ Result load_from_yaml_file(T& config, const std::string& path,
 ///
 /// \tparam T  A struct annotated with YLT_REFL.
 /// \param[in] config  The config struct to serialize.
+/// \param[out] err_msg  If non-null and serialization throws, filled with the
+///             exception's what() message (so callers can surface a real
+///             diagnostic instead of a generic "failed to serialize").
 /// \return  The YAML string, or std::nullopt if serialization throws.
 template <typename T>
-std::optional<std::string> to_yaml(const T& config) {
+std::optional<std::string> to_yaml(const T& config, std::string* err_msg = nullptr) {
     try {
         std::string ss;
         iguana::to_yaml(config, ss, 0);
         return ss;
-    } catch (const std::exception&) {
+    } catch (const std::exception& e) {
         // Defensive: iguana serialization does not throw for well-formed
         // YLT_REFL-annotated structs. This catch exists to uphold the API
         // contract (never throw from a load/save function) against
         // hypothetical edge cases (bad_alloc, corrupted internal state).
-        // This path is intentionally uncovered by tests.
+        // Surface the exception message so a real failure here is debuggable
+        // instead of presenting as a bare "failed to serialize" string.
+        if (err_msg) {
+            *err_msg = e.what();
+        }
         return std::nullopt;
     }
 }
@@ -151,18 +158,37 @@ std::optional<std::string> to_yaml(const T& config) {
 ///          kFileWriteError on failure.
 template <typename T>
 Result save_to_yaml_file(const T& config, const std::string& path) {
-    auto yaml_opt = to_yaml(config);
+    std::string serialize_err;
+    auto yaml_opt = to_yaml(config, &serialize_err);
     if (!yaml_opt.has_value()) {
-        return Result::failure(ErrorCode::kYamlSerializeError,
-                               "failed to serialize config to YAML");
+        // Surface the underlying exception message (if any) so a real
+        // serialization failure is debuggable instead of a bare string.
+        std::string msg = "failed to serialize config to YAML";
+        if (!serialize_err.empty()) {
+            msg += ": ";
+            msg += serialize_err;
+        }
+        return Result::failure(ErrorCode::kYamlSerializeError, std::move(msg));
     }
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
     if (!file) {
         return Result::failure(ErrorCode::kFileWriteError, path);
     }
     file << yaml_opt.value();
+    // Detect a failed write *before* close.  See save_to_json_file for the
+    // rationale: operator<< on a buffered ofstream can return having only
+    // buffered the bytes; a disk-full or I/O error surfaces when the buffer
+    // is flushed.  We force the flush explicitly and inspect failbit/badbit
+    // — checking good() *after* close is unreliable (good() is also false
+    // when eofbit is set).
+    file.flush();
+    if (file.fail()) {
+        file.close();
+        return Result::failure(ErrorCode::kFileWriteError, path);
+    }
     file.close();
-    if (!file.good()) {
+    if (!file) {
+        // A failure surfaced during close itself (e.g. flush-on-close).
         return Result::failure(ErrorCode::kFileWriteError, path);
     }
     return Result::success();

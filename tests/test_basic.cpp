@@ -65,6 +65,18 @@ struct OuterVec {
 };
 YLT_REFL(OuterVec, name, inner);
 
+// ---- Large payload struct: exercises the save_to_*_file flush path.
+// A payload bigger than the typical ofstream buffer forces operator<< to
+// flush (or buffer) a substantial amount of data, so a round-trip through
+// save_to_json_file / save_to_yaml_file exercises the write-and-flush code
+// path rather than just an in-buffer `<<`.  Guards the C6 write-flush fix.
+struct LargeConfig {
+    std::string name;
+    std::vector<int> numbers;
+    std::vector<std::string> tags;
+};
+YLT_REFL(LargeConfig, name, numbers, tags);
+
 struct NestedOptionalVec {
     std::string label;
     std::optional<InnerVec> inner;
@@ -507,6 +519,105 @@ TEST_CASE("Round-trip: YAML file save + load") {
     CHECK(parsed.name == original.name);
     CHECK(parsed.value == original.value);
     CHECK(parsed.flag == original.flag);
+}
+
+// ---- C6: write-flush detection.  A payload larger than the typical ofstream
+// buffer forces the write path to flush, so a round-trip through
+// save_to_json_file / save_to_yaml_file exercises the flush-and-check code
+// rather than just the in-buffer operator<<.  Data integrity on reload is the
+// observable proof that the flush succeeded and was correctly detected.
+TEST_CASE("save_to_json_file: large payload round-trips (flush path)") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_large.json").string();
+
+    LargeConfig original;
+    original.name = "large_payload";
+    // ~256k integers — well beyond any default ofstream buffer, so the
+    // final flush is the operation whose success the save function must
+    // detect (the C6 fix: check after explicit flush, before/around close).
+    original.numbers.resize(256 * 1024);
+    for (size_t i = 0; i < original.numbers.size(); ++i) {
+        original.numbers[i] = static_cast<int>(i % 1000);
+    }
+    original.tags.reserve(2048);
+    for (int i = 0; i < 2048; ++i) {
+        original.tags.push_back("tag_" + std::to_string(i));
+    }
+
+    auto r_save = light_config::save_to_json_file(original, path, false);
+    CHECK(r_save.ok());
+    CHECK(r_save.code == light_config::ErrorCode::kOk);
+
+    // The file on disk must actually contain the trailing bytes — a
+    // truncated flush would surface as a parse error or missing data here.
+    LargeConfig parsed;
+    auto r = light_config::load_from_json_file(parsed, path);
+    CHECK(r.ok());
+    CHECK(parsed.name == original.name);
+    REQUIRE(parsed.numbers.size() == original.numbers.size());
+    for (size_t i = 0; i < original.numbers.size(); ++i) {
+        CHECK(parsed.numbers[i] == original.numbers[i]);
+    }
+    REQUIRE(parsed.tags.size() == original.tags.size());
+    for (size_t i = 0; i < original.tags.size(); ++i) {
+        CHECK(parsed.tags[i] == original.tags[i]);
+    }
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("save_to_yaml_file: large payload round-trips (flush path)") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_large.yaml").string();
+
+    LargeConfig original;
+    original.name = "large_yaml";
+    original.numbers.resize(64 * 1024);
+    for (size_t i = 0; i < original.numbers.size(); ++i) {
+        original.numbers[i] = static_cast<int>(i);
+    }
+    original.tags.reserve(512);
+    for (int i = 0; i < 512; ++i) {
+        original.tags.push_back("t" + std::to_string(i));
+    }
+
+    auto r_save = light_config::save_to_yaml_file(original, path);
+    CHECK(r_save.ok());
+    CHECK(r_save.code == light_config::ErrorCode::kOk);
+
+    LargeConfig parsed;
+    auto r = light_config::load_from_yaml_file(parsed, path);
+    CHECK(r.ok());
+    CHECK(parsed.name == original.name);
+    REQUIRE(parsed.numbers.size() == original.numbers.size());
+    CHECK(parsed.numbers[0] == 0);
+    CHECK(parsed.numbers.back() == static_cast<int>(original.numbers.size() - 1));
+    REQUIRE(parsed.tags.size() == original.tags.size());
+
+    std::filesystem::remove(path);
+}
+
+// ---- C7a: to_json / to_yaml expose an err out-param so save_to_* can surface
+// the underlying exception message instead of a bare "failed to serialize"
+// string.  On the happy path the err out-param stays empty and the optional
+// is populated; this guards the new API surface without faking a throw
+// (iguana does not throw for well-formed YLT_REFL structs, per the doxygen).
+TEST_CASE("to_json/to_yaml: err out-param stays empty on success") {
+    TestConfig cfg;
+    cfg.name = "err_param";
+    cfg.value = 7;
+
+    std::string err;
+    auto json_opt = light_config::to_json(cfg, false, &err);
+    REQUIRE(json_opt.has_value());
+    CHECK(err.empty());
+    CHECK(json_opt->find("\"err_param\"") != std::string::npos);
+
+    std::string yaml_err;
+    auto yaml_opt = light_config::to_yaml(cfg, &yaml_err);
+    REQUIRE(yaml_opt.has_value());
+    CHECK(yaml_err.empty());
+    CHECK(yaml_opt->find("err_param") != std::string::npos);
 }
 
 // ============================================================================
