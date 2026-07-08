@@ -28,4 +28,7 @@ if(PYTHON3_EXE)
     add_test(NAME gen_config_cpp_compile
              COMMAND ${PYTHON3_EXE} ${CMAKE_SOURCE_DIR}/scripts/test_cpp_compile.py
              WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/scripts)
+    add_test(NAME gen_config_edge_probes
+             COMMAND ${PYTHON3_EXE} ${CMAKE_SOURCE_DIR}/scripts/test_edge_probes.py
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/scripts)
 endif()
