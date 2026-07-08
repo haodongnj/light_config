@@ -1,0 +1,4 @@
+__metadata__,namespace=edge
+__enum__,enum_name=Empty,enum_def=dup|dup,hpp_file=dup.hpp
+field_name,group,type,default,min,max,optional,description,hpp_file
+v,DupEnum,Empty,dup,,,false,dup,dup.hpp

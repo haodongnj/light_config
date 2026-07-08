@@ -1,0 +1,4 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+self,CycleA,CycleB,,,,false,a,CycleA.hpp
+self,CycleB,CycleA,,,,false,b,CycleB.hpp

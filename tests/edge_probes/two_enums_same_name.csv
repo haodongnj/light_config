@@ -1,0 +1,6 @@
+__metadata__,namespace=edge
+__enum__,enum_name=Fruit,enum_def=apple|banana|cherry,hpp_file=types.hpp,namespace=fruit
+__enum__,enum_name=Fruit,enum_def=apple|banana|cherry,hpp_file=other.hpp,namespace=veggie
+field_name,group,type,default,min,max,optional,description,hpp_file
+f,Conf,apple,,,false,two enums same name diff namespace,types.hpp
+g,Conf,apple,,,false,second references other enum same name,other.hpp

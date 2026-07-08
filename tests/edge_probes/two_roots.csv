@@ -1,0 +1,6 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+a,Twin,string,x,,,false,twin A,Twin.hpp
+b,Twin,string,y,,,false,twin B,Twin.hpp
+left,Root,Twin,,,,false,Twin member 1,Root.hpp
+right,Root,Twin,,,,false,Twin member 2 same type,Root.hpp
