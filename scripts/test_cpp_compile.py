@@ -17,11 +17,7 @@ Exits nonzero on the first failing assertion.  Requires a C++17 compiler on
 PATH (c++ / clang++ / g++).
 """
 
-import os
-import shutil
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -30,118 +26,14 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import gen_config  # noqa: E402
 from _gen_config.exceptions import GeneratorError  # noqa: E402
 
-_FAIL = 0
-
-
-def check(cond: bool, msg: str) -> None:
-    global _FAIL
-    if not cond:
-        print(f"[FAIL] {msg}")
-        _FAIL += 1
-    else:
-        print(f"[PASS] {msg}")
-
-
-def _find_compiler() -> str:
-    for c in ("c++", "clang++", "g++"):
-        if shutil.which(c):
-            return c
-    return ""
-
-
-_COMPILER = _find_compiler()
-_YLT = (SCRIPT_DIR.parent / "third_party" / "yalantinglibs" / "include").resolve()
-# yalantinglibs ships three include roots (mirrors the SYSTEM INTERFACE paths
-# configured in the root CMakeLists.txt).  All three are needed: the top-level
-# for <ylt/...>, standalone/ for <iguana/...>, and thirdparty/ for its deps.
-_THIRD_PARTY_DIRS = [
-    _YLT,
-    (_YLT / "ylt" / "standalone").resolve(),
-    (_YLT / "ylt" / "thirdparty").resolve(),
-]
-_INCLUDE = (SCRIPT_DIR.parent / "include").resolve()
-
-
-def _compile_dir(out_dir: Path, extra_hpp_check: str = "") -> tuple[bool, str]:
-    """Compile every *.hpp/*.cpp pair in *out_dir* with -fsyntax-only.
-
-    Returns (ok, combined_diagnostics).  A compile of the .cpp pulls in the
-    matching .hpp via #include, so syntax-checking just the .cpp files is
-    enough to exercise both.  The C++ standard library and yalantinglibs are
-    on the include path; the generated files include <light_config/*> which
-    lives under repo /include.
-    """
-    if not _COMPILER:
-        return False, "no C++ compiler (c++/clang++/g++) on PATH"
-    cpps = sorted(out_dir.glob("*.cpp"))
-    if not cpps:
-        return False, "no .cpp files generated"
-    diag: list[str] = []
-    ok = True
-    for cpp in cpps:
-        # Flags mirror the spirit of the CMake build: catch real codegen
-        # defects (hard syntax errors, -Wimplicitly-unsigned-literal for the
-        # INT64_MIN spelling, -Wunknown-escape-sequence / -Winvalid-pp-token
-        # for unescaped string defaults) without tripping on yalantinglibs
-        # reflection-macro expansion noise.  The real CMake build uses default
-        # warning flags (no -Werror); we add -Werror + a narrow -Wno to make
-        # the test assert "compiles clean" on the defects we care about.
-        # yalantinglibs is on -isystem so its own warnings are suppressed.
-        cmd = [
-            _COMPILER, "-std=c++17", "-fsyntax-only",
-            "-Wall", "-Werror",
-            "-Wno-unused-parameter",   # YLT_REFL macro expansion
-            f"-I{out_dir}",
-            f"-I{_INCLUDE}",
-        ] + [f"-isystem{p}" for p in _THIRD_PARTY_DIRS] + [str(cpp)]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            ok = False
-            diag.append(f"--- {cpp.name} ---\n{proc.stderr}")
-    return ok, "\n".join(diag)
-
-
-def _generate_to_dir(csv_text: str, *, generate_samples: bool = False) -> Path:
-    """Generate from *csv_text* into a fresh temp dir; return the dir path."""
-    tmp = Path(tempfile.mkdtemp(prefix="lc_compile_test_"))
-    csv_path = tmp / "schema.csv"
-    csv_path.write_text(csv_text)
-    out_dir = tmp / "out"
-    out_dir.mkdir()
-    cfg = gen_config.GeneratorConfig(
-        input_csv=str(csv_path),
-        output_dir=str(out_dir),
-        generate_samples=generate_samples,
-    )
-    with open(os.devnull, "w") as devnull:
-        old_out, old_err = sys.stdout, sys.stderr
-        sys.stdout = sys.stderr = devnull
-        try:
-            gen_config.generate(cfg)
-        finally:
-            sys.stdout, sys.stderr = old_out, old_err
-    return out_dir
-
-
-def _generate_exits(csv_text: str) -> bool:
-    """Return True if generating from *csv_text* raises GeneratorError / exits."""
-    tmp = Path(tempfile.mkdtemp(prefix="lc_gen_reject_"))
-    csv_path = tmp / "schema.csv"
-    csv_path.write_text(csv_text)
-    out_dir = tmp / "out"
-    out_dir.mkdir()
-    cfg = gen_config.GeneratorConfig(input_csv=str(csv_path), output_dir=str(out_dir))
-    old_err = sys.stderr
-    try:
-        with open(os.devnull, "w") as devnull:
-            sys.stderr = devnull
-            gen_config.generate(cfg)
-        return False
-    except (SystemExit, GeneratorError):
-        return True
-    finally:
-        sys.stderr = old_err
-
+import _gen_test_helpers as _h  # noqa: E402
+from _gen_test_helpers import (  # noqa: E402
+    check,
+    COMPILER as _COMPILER,
+    compile_dir as _compile_dir,
+    generate_to_dir as _generate_to_dir,
+    generate_exits as _generate_exits,
+)
 
 # ---------------------------------------------------------------------------
 # Happy-path: the full integer width matrix compiles and links to light_config.
@@ -439,8 +331,8 @@ def main() -> int:
     test_min_max_on_bool_rejected()
     test_min_max_on_vector_rejected()
     test_sample_config_regenerates_and_compiles()
-    if _FAIL:
-        print(f"\n{_FAIL} compile/reject self-test(s) failed.")
+    if _h.get_fail_count():
+        print(f"\n{_h.get_fail_count()} compile/reject self-test(s) failed.")
         return 1
     print("\nAll compile/reject self-tests passed.")
     return 0
