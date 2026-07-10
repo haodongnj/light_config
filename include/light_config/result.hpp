@@ -146,6 +146,18 @@ struct is_optional<std::optional<T>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_optional_v = is_optional<T>::value;
 
+/// Trait: true for std::vector<T> and std::array<T,N> (ranges of resizable /
+/// fixed elements). Used by audit_json_recursive to recurse into arrays of
+/// YLT_REFL structs (REVIEW.md H6).
+template <typename T>
+struct is_range : std::false_type {};
+template <typename T, typename Alloc>
+struct is_range<std::vector<T, Alloc>> : std::true_type {};
+template <typename T, std::size_t N>
+struct is_range<std::array<T, N>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_range_v = is_range<T>::value;
+
 }  // namespace detail
 
 }  // namespace light_config
