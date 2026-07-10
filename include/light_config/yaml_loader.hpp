@@ -88,6 +88,15 @@ Result load_from_yaml_string(T& config, const std::string& yaml_str,
                 if (trim_end != std::string::npos) {
                     found_ver = found_ver.substr(0, trim_end + 1);
                 }
+                // Strip one surrounding pair of single or double quotes
+                // (REVIEW.md H2): $schema: "1.0.0" must match expected 1.0.0.
+                if (found_ver.size() >= 2) {
+                    char first = found_ver.front();
+                    char last = found_ver.back();
+                    if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                        found_ver = found_ver.substr(1, found_ver.size() - 2);
+                    }
+                }
                 if (found_ver != expected_schema_version) {
                     auto msg = std::string("expected schema version '")
                                + std::string(expected_schema_version) + "' but file has '"
