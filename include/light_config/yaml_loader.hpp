@@ -69,43 +69,67 @@ Result load_from_yaml_string(T& config, const std::string& yaml_str) {
 /// Load a YAML string with optional schema version check.
 ///
 /// YAML limitation: iguana 0.6.1 has no YAML DOM, so the version check is a
-/// simple substring search for `$schema:` in the raw content.  It handles the
-/// common case (unquoted scalar on its own line) but not quoted strings or
-/// flow-style mappings.  For strict checking, use the JSON format.
+/// line-by-line scan for `$schema:` at the start of a line's content (after
+/// optional indentation).  Line-leading `#` comments are skipped.  Mid-line
+/// comments (e.g. `name: x # $schema: 2.0.0`) are out of scope.  For strict
+/// checking, use the JSON format.
 template <typename T>
 Result load_from_yaml_string(T& config, const std::string& yaml_str,
                              std::string_view expected_schema_version) {
     if (!expected_schema_version.empty()) {
-        // Best-effort check: look for `$schema: <value>` on a line.
-        auto pos = yaml_str.find("$schema:");
-        if (pos != std::string::npos) {
-            auto val_start = yaml_str.find_first_not_of(" \t", pos + 8);
-            if (val_start != std::string::npos) {
-                auto val_end = yaml_str.find_first_of("\r\n", val_start);
-                auto found_ver = yaml_str.substr(val_start, val_end - val_start);
-                // Trim trailing whitespace.
-                auto trim_end = found_ver.find_last_not_of(" \t");
-                if (trim_end != std::string::npos) {
-                    found_ver = found_ver.substr(0, trim_end + 1);
-                }
-                // Strip one surrounding pair of single or double quotes
-                // (REVIEW.md H2): $schema: "1.0.0" must match expected 1.0.0.
-                if (found_ver.size() >= 2) {
-                    char first = found_ver.front();
-                    char last = found_ver.back();
-                    if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-                        found_ver = found_ver.substr(1, found_ver.size() - 2);
+        // Line-aware scan (REVIEW.md H1): the old raw find("$schema:")
+        // matched inside # comments.  Walk lines, skip line-leading
+        // comments, and match $schema: only at the start of the line's
+        // content.  This is NOT a full YAML parser — mid-line comments
+        // are out of scope.
+        bool found = false;
+        std::string found_ver;
+        size_t pos = 0;
+        while (pos < yaml_str.size()) {
+            auto line_end = yaml_str.find_first_of("\r\n", pos);
+            if (line_end == std::string::npos)
+                line_end = yaml_str.size();
+            std::string_view line(yaml_str.data() + pos, line_end - pos);
+            // First non-space char of the line.
+            auto first_ns = line.find_first_not_of(" \t");
+            if (first_ns != std::string_view::npos && line[first_ns] == '#') {
+                // line-leading comment — skip.
+            } else if (first_ns != std::string_view::npos
+                       && line.substr(first_ns).rfind("$schema:", 0) == 0) {
+                // $schema: at the start of the content.
+                auto val_start = first_ns + 8;  // length of "$schema:"
+                auto lv = line.substr(val_start);
+                auto vs = lv.find_first_not_of(" \t");
+                if (vs != std::string_view::npos) {
+                    lv = lv.substr(vs);
+                    // Trim trailing whitespace.
+                    auto ve = lv.find_last_not_of(" \t");
+                    if (ve != std::string_view::npos)
+                        lv = lv.substr(0, ve + 1);
+                    // Strip one surrounding pair of " or ' (H2).
+                    if (lv.size() >= 2) {
+                        char f = lv.front(), l = lv.back();
+                        if ((f == '"' && l == '"') || (f == '\'' && l == '\''))
+                            lv = lv.substr(1, lv.size() - 2);
                     }
-                }
-                if (found_ver != expected_schema_version) {
-                    auto msg = std::string("expected schema version '")
-                               + std::string(expected_schema_version) + "' but file has '"
-                               + found_ver + "'";
-                    return Result::failure(ErrorCode::kSchemaMismatch, std::move(msg));
+                    found = true;
+                    found_ver = std::string(lv);
                 }
             }
+            // Advance past this line's terminator.
+            pos = line_end;
+            while (pos < yaml_str.size() && (yaml_str[pos] == '\r' || yaml_str[pos] == '\n'))
+                ++pos;
+            if (found)
+                break;
         }
-        // $schema absent → no error (permissive)
+        if (found && found_ver != expected_schema_version) {
+            auto msg = std::string("expected schema version '")
+                       + std::string(expected_schema_version) + "' but file has '" + found_ver
+                       + "'";
+            return Result::failure(ErrorCode::kSchemaMismatch, std::move(msg));
+        }
+        // $schema absent (or comment-only) -> permissive, no error.
     }
 
     // Delegate to the existing (non-checking) implementation.
