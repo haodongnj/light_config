@@ -60,7 +60,7 @@ void audit_json_recursive(T& obj, const iguana::jobject& dom,
             // (H6b) Recurse into a std::vector<T> (or array) of YLT_REFL
             // structs.  Report element subfields with an index-agnostic
             // "[]" path segment (audit reports presence, not positions).
-            else if constexpr (detail::is_range_v<field_t>) {
+            else if constexpr (is_range_v<field_t>) {
                 using elem_t = typename field_t::value_type;
                 if constexpr (ylt::reflection::is_ylt_refl_v<elem_t>) {
                     if (it->second.is_array()) {

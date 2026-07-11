@@ -153,8 +153,6 @@ template <typename T>
 struct is_range : std::false_type {};
 template <typename T, typename Alloc>
 struct is_range<std::vector<T, Alloc>> : std::true_type {};
-template <typename T, std::size_t N>
-struct is_range<std::array<T, N>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_range_v = is_range<T>::value;
 

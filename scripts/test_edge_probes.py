@@ -59,6 +59,7 @@ def _probe_csv(name: str) -> str:
 def _generate_capture_stderr(csv_text: str) -> tuple[bool, str]:
     """Generate; return (ok, stderr_text).  ok=False if generation raised."""
     import gen_config
+    from _gen_config.exceptions import GeneratorError
     import tempfile, os
     tmp = Path(tempfile.mkdtemp(prefix="lc_edge_"))
     csv_path = tmp / "schema.csv"
@@ -74,7 +75,7 @@ def _generate_capture_stderr(csv_text: str) -> tuple[bool, str]:
     try:
         gen_config.generate(cfg)
         return True, ""
-    except (SystemExit, Exception) as e:
+    except (SystemExit, GeneratorError) as e:
         return False, (sys.stderr.getvalue() + str(e))
     finally:
         sys.stderr = old_err
