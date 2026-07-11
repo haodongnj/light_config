@@ -45,9 +45,9 @@ Pass `Format::Json` or `Format::Yaml` to override. Also available:
 | `load_from_json_string(cfg, str)` | String |
 | `load_from_yaml_string(cfg, str)` | String |
 
-All accept an optional `expected_schema_version` parameter — when non-empty, the `"$schema"`
-key is checked and mismatches return `ErrorCode::kSchemaMismatch`. The convenience
-`load_versioned()` combines format detection with schema enforcement.
+All accept an optional `expected_schema_version` — when non-empty, the `"$schema"` key is
+checked and mismatches return `ErrorCode::kSchemaMismatch`. The convenience `load_versioned()`
+combines format detection with schema enforcement.
 
 ### Serialization
 
@@ -60,47 +60,38 @@ key is checked and mismatches return `ErrorCode::kSchemaMismatch`. The convenien
 
 ### Optional-field audit
 
-`std::optional<T>` fields are tracked: which were present in the file, which were absent.
-For JSON, `"key": null` is **present** (DOM-level check). YAML conflates explicit null with
-absent — both produce `std::nullopt`. Nested fields get dot-separated paths (`"server.port"`).
+`std::optional<T>` fields are tracked: `Result::absent_optionals` lists which were missing
+from the file, `Result::present_fields` lists which were found. For JSON, `"key": null` is
+**present** (DOM-level check). YAML conflates explicit null with absent. Nested fields get
+dot-separated paths (`"server.port"`).
 
 ### Error codes
 
-`kOk` (0), `kFileReadError` (1), `kFileEmpty` (2), `kFileWriteError` (3),
-`kJsonParseError` (10), `kJsonDeserializeError` (11), `kJsonSerializeError` (12),
-`kYamlParseError` (20), `kYamlSerializeError` (21),
-`kValidationError` (30), `kSchemaMismatch` (31), `kUnrecognizedFormat` (40).
+| Code | Name |
+|---|---|
+| 0 | `kOk` |
+| 1–3 | `kFileReadError`, `kFileEmpty`, `kFileWriteError` |
+| 10–12 | `kJsonParseError`, `kJsonDeserializeError`, `kJsonSerializeError` |
+| 20–21 | `kYamlParseError`, `kYamlSerializeError` |
+| 30–31 | `kValidationError`, `kSchemaMismatch` |
+| 40 | `kUnrecognizedFormat` |
 
-Ranges enforced by `static_assert`: 1–9 file I/O, 10–19 JSON, 20–29 YAML, 30–39 validation/schema, 40–49 format.
+Ranges enforced by `static_assert`: 1–9 file I/O, 10–19 JSON, 20–29 YAML, 30–39 validation,
+40–49 format.
 
 ## Supported types
 
-Any type iguana can deserialize. Common:
-
-| C++ type | CSV type |
-|---|---|
-| `int32_t` … `int64_t` | `int` / `int8`…`int64` |
-| `uint8_t` … `uint64_t` | `uint8`…`uint64` |
-| `double` | `double` |
-| `bool` | `bool` |
-| `std::string` | `string` |
-| `std::vector<T>` | `vector<T>` |
-| `std::optional<T>` | empty default |
+Any type iguana can deserialize: `int32_t`…`int64_t`, `uint8_t`…`uint64_t`, `double`, `bool`,
+`std::string`, `std::vector<T>`, `std::optional<T>`, and nested structs annotated with `YLT_REFL`.
 
 ## CSV code generator
 
-Turns a CSV schema into `YLT_REFL`-annotated structs with validator functions.
-
-```bash
-python3 scripts/gen_config.py --input examples/sample_config.csv --output-dir examples/ --generate-samples
-```
-
-CSV columns: `field_name`, `group` (struct name), `type`, `default`, `min`, `max`, `description`, `hpp_file`.
-Containment is expressed by setting `type` to another group's name. The root struct is auto-detected.
+A Python script that turns a CSV schema into `YLT_REFL`-annotated structs with built-in
+validator functions. See [AGENTS.md](AGENTS.md) for details.
 
 ## Formatting
 
-All C++ code is formatted with **clang-format** (Google-based, 4-space indent, 100 cols).
+C++ code is formatted with **clang-format** (Google-based, 4-space indent, 100 cols).
 A pre-commit hook auto-formats staged files on commit:
 
 ```bash
