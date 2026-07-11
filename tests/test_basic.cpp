@@ -1031,3 +1031,206 @@ TEST_CASE("enums: schema version check works with enum fields") {
         CHECK(r.code == light_config::ErrorCode::kSchemaMismatch);
     }
 }
+
+// ============================================================================
+// load_and_validate Tests (H4 fix)
+// ============================================================================
+
+// Validator for TestConfig: rejects value >= 100 and name == "invalid".
+light_config::Result validate_TestConfig(const TestConfig& cfg) {
+    if (cfg.name == "invalid") {
+        return light_config::Result::failure(light_config::ErrorCode::kValidationError,
+                                             "name must not be 'invalid'");
+    }
+    if (cfg.value >= 100) {
+        return light_config::Result::failure(
+            light_config::ErrorCode::kValidationError,
+            "value " + std::to_string(cfg.value) + " exceeds maximum 99");
+    }
+    return light_config::Result::success();
+}
+
+TEST_CASE("load_and_validate: JSON string — validation passes") {
+    TestConfig cfg;
+    auto r = light_config::load_from_json_string_and_validate(cfg, R"({
+        "name": "good",
+        "value": 42,
+        "flag": true
+    })",
+                                                              validate_TestConfig);
+    CHECK(r.ok());
+    CHECK(cfg.name == "good");
+    CHECK(cfg.value == 42);
+    // Audit info is preserved from the load result.
+    CHECK(r.present_fields.size() == 3);
+    CHECK(r.absent_optionals.size() == 3);
+}
+
+TEST_CASE("load_and_validate: JSON string — validation fails") {
+    TestConfig cfg;
+    auto r = light_config::load_from_json_string_and_validate(cfg, R"({
+        "name": "good",
+        "value": 200,
+        "flag": true
+    })",
+                                                              validate_TestConfig);
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kValidationError);
+    CHECK(!r.message.empty());
+    CHECK(r.message.find("200") != std::string::npos);
+}
+
+TEST_CASE("load_and_validate: JSON string — load fails, validator not called") {
+    TestConfig cfg;
+    auto r = light_config::load_from_json_string_and_validate(cfg, "{invalid", validate_TestConfig);
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kJsonParseError);
+}
+
+TEST_CASE("load_and_validate: JSON file — both succeed") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_lav.json").string();
+    {
+        std::ofstream f(path);
+        f << R"({"name": "filetest", "value": 10, "flag": false})";
+    }
+
+    TestConfig cfg;
+    auto r = light_config::load_from_json_file_and_validate(cfg, path, validate_TestConfig);
+    CHECK(r.ok());
+    CHECK(cfg.name == "filetest");
+    CHECK(cfg.value == 10);
+}
+
+TEST_CASE("load_and_validate: YAML string — validation passes") {
+    TestConfig cfg;
+    auto r = light_config::load_from_yaml_string_and_validate(cfg, R"(
+name: yaml_good
+value: 50
+flag: true
+)",
+                                                              validate_TestConfig);
+    CHECK(r.ok());
+    CHECK(cfg.name == "yaml_good");
+    CHECK(cfg.value == 50);
+}
+
+TEST_CASE("load_and_validate: YAML string — validation fails") {
+    TestConfig cfg;
+    auto r = light_config::load_from_yaml_string_and_validate(cfg, R"(
+name: invalid
+value: 1
+flag: false
+)",
+                                                              validate_TestConfig);
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kValidationError);
+    CHECK(r.message.find("invalid") != std::string::npos);
+}
+
+TEST_CASE("load_and_validate: format-agnostic with JSON file") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_lav2.json").string();
+    {
+        std::ofstream f(path);
+        f << R"({"name": "auto_test", "value": 7, "flag": true})";
+    }
+
+    TestConfig cfg;
+    auto r = light_config::load_and_validate(cfg, path, validate_TestConfig);
+    CHECK(r.ok());
+    CHECK(cfg.name == "auto_test");
+    CHECK(cfg.value == 7);
+}
+
+TEST_CASE("load_and_validate: format-agnostic with YAML file") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_lav3.yaml").string();
+    {
+        std::ofstream f(path);
+        f << "name: yaml_auto\nvalue: 33\nflag: false\n";
+    }
+
+    TestConfig cfg;
+    auto r = light_config::load_and_validate(cfg, path, validate_TestConfig);
+    CHECK(r.ok());
+    CHECK(cfg.name == "yaml_auto");
+    CHECK(cfg.value == 33);
+}
+
+TEST_CASE("load_and_validate: format-agnostic validation fails") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_lav4.json").string();
+    {
+        std::ofstream f(path);
+        f << R"({"name": "invalid", "value": 1, "flag": false})";
+    }
+
+    TestConfig cfg;
+    auto r = light_config::load_and_validate(cfg, path, validate_TestConfig);
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kValidationError);
+    CHECK(r.message.find("invalid") != std::string::npos);
+}
+
+TEST_CASE("load_versioned_and_validate: schema match + validation passes") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_lvv.json").string();
+    {
+        std::ofstream f(path);
+        f << R"({"$schema": "2.0.0", "name": "good", "value": 5})";
+    }
+
+    VersionedConfig cfg;
+    auto r = light_config::load_versioned_and_validate(
+        cfg, path, kVersionedConfigSchemaVersion, [](const VersionedConfig& c) {
+            if (c.value < 0) {
+                return light_config::Result::failure(light_config::ErrorCode::kValidationError,
+                                                     "value must be non-negative");
+            }
+            return light_config::Result::success();
+        });
+    CHECK(r.ok());
+    CHECK(cfg.name == "good");
+    CHECK(cfg.value == 5);
+}
+
+TEST_CASE("load_versioned_and_validate: schema mismatch, validator not called") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_lvv2.json").string();
+    {
+        std::ofstream f(path);
+        f << R"({"$schema": "9.9.9", "name": "bad", "value": 5})";
+    }
+
+    VersionedConfig cfg;
+    auto r = light_config::load_versioned_and_validate(
+        cfg, path, kVersionedConfigSchemaVersion, [](const VersionedConfig& /*c*/) {
+            // Should never be called.
+            return light_config::Result::failure(light_config::ErrorCode::kValidationError,
+                                                 "should not reach");
+        });
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kSchemaMismatch);
+}
+
+TEST_CASE("load_versioned_and_validate: schema passes but validation fails") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_lvv3.json").string();
+    {
+        std::ofstream f(path);
+        f << R"({"$schema": "2.0.0", "name": "negative", "value": -1})";
+    }
+
+    VersionedConfig cfg;
+    auto r = light_config::load_versioned_and_validate(
+        cfg, path, kVersionedConfigSchemaVersion, [](const VersionedConfig& c) {
+            if (c.value < 0) {
+                return light_config::Result::failure(light_config::ErrorCode::kValidationError,
+                                                     "value must be non-negative");
+            }
+            return light_config::Result::success();
+        });
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kValidationError);
+}
