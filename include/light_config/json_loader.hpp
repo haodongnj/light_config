@@ -62,6 +62,22 @@ Result load_from_json_file(T& config, const std::string& path,
             // $schema absent or non-string → no error (permissive by default)
         }
 
+        // ---- Optional-field audit (must run BEFORE from_json) ----
+        // The audit walks the JSON DOM to discover which optional fields are
+        // physically present vs. absent in the document — info that from_json
+        // discards.  It mutates the struct as it goes (sets absent optionals
+        // to nullopt, clears vectors and pushes back default-scaffold elements
+        // in the H6[ab] recursion branches, etc.), but those mutations happen
+        // on the default-constructed struct and are transient scaffolding to
+        // drive the for_each / for loops.  The real data comes from the
+        // from_json call immediately below, which re-parses the raw JSON
+        // string and overwrites all fields.
+        //     IMPORTANT: from_json must ALWAYS run after the audit, never
+        // before.  Any refactor that swaps this ordering would silently
+        // corrupt nested-struct and vector fields (the H6a/H6b branches zero
+        // out freshly-populated data), and the test suite would not catch it
+        // (tests only assert the audit lists, not the struct values after
+        // loading).
         detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
     } catch (const std::exception& e) {
         return Result::failure(ErrorCode::kJsonParseError, e.what());
@@ -110,6 +126,11 @@ Result load_from_json_string(T& config, const std::string& json_str,
             // $schema absent or non-string → no error (permissive by default)
         }
 
+        // ---- Optional-field audit (must run BEFORE from_json) ----
+        // See the identical comment in load_from_json_file for the full
+        // rationale.  In short: the audit discovers field presence from the
+        // DOM and its struct mutations are transient scaffolding that
+        // from_json overwrites.  from_json must ALWAYS run after the audit.
         detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
     } catch (const std::exception& e) {
         return Result::failure(ErrorCode::kJsonParseError, e.what());
