@@ -1,0 +1,5 @@
+__metadata__,namespace=edge
+__enum__,enum_name=Quoted,enum_def=a=1|b=2,hpp_file=types.hpp
+field_name,group,type,default,min,max,optional,description,hpp_file
+level,Conf,Quoted,"a",,,false,vector<bool> field constructor-quoting?,types.hpp
+vs,Conf,vector<string>,"[""a"",""b""]",,,false,string with brackets,types.hpp

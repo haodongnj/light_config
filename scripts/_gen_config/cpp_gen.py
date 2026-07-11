@@ -24,17 +24,54 @@ def _cpp_include(header: str) -> str:
     return f'#include "{header}"' if header else ""
 
 
+def _cpp_int_literal(val: str, csv_type: str) -> str:
+    """Emit a portable C++ integer literal for a CSV default/min/max cell.
+
+    INT64_MIN (-2**63) is the one value that cannot be written as a positive
+    decimal literal followed by unary minus: the magnitude (2**63) exceeds
+    INT64_MAX, so the compiler interprets the literal as unsigned *before* the
+    minus is applied, producing a -Wimplicitly-unsigned-literal diagnostic
+    (a hard error under -Werror).  The portable spelling is (INT64_MAX - 1).
+
+    int64/uint64 literals also get an explicit LL/ULL suffix so their type is
+    unambiguous on every platform.  Narrower integer types are emitted as-is
+    (their values are already range-checked by schema._validate_int_literals).
+    """
+    if csv_type == "int64":
+        if val.lstrip("-") == "9223372036854775808":
+            return "(-9223372036854775807LL - 1)"
+        return f"{val}LL"
+    if csv_type == "uint64":
+        return f"{val}ULL"
+    return val
+
+
 def _escape_default(val: str, cpp_type: str,
+                    csv_type: str = "",
                     enum_names: set[str] | None = None) -> str:
     """Escape a CSV default value to its C++ literal form."""
     if val is None or val.strip() == "":
         return ""
     val = val.strip()
     if cpp_type == "std::string":
-        return f'"{val}"'
+        # Escape backslash first, then the quote, so the emitted literal is
+        # valid C++ for any string default (e.g. Windows file paths, strings
+        # containing quotes).  Without this, a default of `a"b\c` would emit
+        # `"a"b\c"` — a premature string terminator and an invalid escape.
+        escaped = val.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
     if enum_names and cpp_type in enum_names:
         # Qualify enum literal: "info" -> "LogLevel::info"
         return f"{cpp_type}::{val}"
+    # Fixed-width 64-bit integer literals need the portable spelling (see
+    # _cpp_int_literal).  csv_type is passed by the caller; when it is
+    # absent we fall back to inferring from cpp_type for back-compat.
+    ct = csv_type or ({
+        "int64_t": "int64",
+        "uint64_t": "uint64",
+    }.get(cpp_type, ""))
+    if ct in ("int64", "uint64"):
+        return _cpp_int_literal(val, ct)
     return val
 
 
@@ -147,7 +184,9 @@ def _make_struct_body(
         default_cell = (row.get("default") or "").strip()
         cpp_type = map_type(ftype_cell)
         is_opt = _is_optional(row)
-        default_literal = _escape_default(default_cell, cpp_type, enum_names=enum_names)
+        default_literal = _escape_default(
+            default_cell, cpp_type, csv_type=ftype_cell, enum_names=enum_names
+        )
 
         desc = (row.get("description") or "").strip()
         if desc:
@@ -262,23 +301,29 @@ def _make_validate_impl(
         is_optional = _is_optional(row)
         field_expr = f"cfg.{fname}.value()" if is_optional else f"cfg.{fname}"
 
+        # Range bounds for 64-bit integer fields must use the same portable
+        # literal spelling as defaults (INT64_MIN in particular); otherwise the
+        # emitted comparison would trip -Wimplicitly-unsigned-literal.
+        min_lit = _cpp_int_literal(min_val, csv_type) if min_val else ""
+        max_lit = _cpp_int_literal(max_val, csv_type) if max_val else ""
+
         cond_parts: list[str] = []
         msg_parts: list[str] = []
 
         if min_val and max_val:
             cond_parts.append(
-                f"{field_expr} < {min_val} || {field_expr} > {max_val}"
+                f"{field_expr} < {min_lit} || {field_expr} > {max_lit}"
             )
             msg_parts.append(
                 f"\" << {field_expr} << \" out of range [{min_val}, {max_val}]"
             )
         elif min_val:
-            cond_parts.append(f"{field_expr} < {min_val}")
+            cond_parts.append(f"{field_expr} < {min_lit}")
             msg_parts.append(
                 f"\" << {field_expr} << \" below minimum {min_val}"
             )
         elif max_val:
-            cond_parts.append(f"{field_expr} > {max_val}")
+            cond_parts.append(f"{field_expr} > {max_lit}")
             msg_parts.append(
                 f"\" << {field_expr} << \" above maximum {max_val}"
             )

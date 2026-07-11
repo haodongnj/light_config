@@ -10,7 +10,6 @@ jobs:
   clang-format:
     name: clang-format check
     runs-on: ubuntu-22.04
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -22,4 +21,9 @@ jobs:
 
       - name: Check formatting
         run: |
-          find include examples tests -name '*.cpp' -o -name '*.hpp' -o -name '*.h' | xargs clang-format-14 --dry-run --Werror
+          # Parenthesize the -name group so -print binds to the whole OR
+          # expression.  Without the parens, GNU find's implicit -print
+          # binds only to the last -name term ('*.h'), so the repo's .cpp
+          # and .hpp files were never checked — a silent no-op.
+          find include examples tests \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -print \
+            | xargs clang-format-14 --dry-run --Werror

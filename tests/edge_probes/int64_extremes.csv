@@ -1,0 +1,5 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+i64low,BigInt,int64,-9223372036854775808,,,false,min int64,BigInt.hpp
+i64high,BigInt,int64,9223372036854775807,,,false,max int64,BigInt.hpp
+u64,BigInt,uint64,18446744073709551615,,,false,max uint64,BigInt.hpp

@@ -1,0 +1,8 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+deep0,Nest0,string,a,,,false,nest0,Nest0.hpp
+deep,Nest1,Nest0,,,,false,n1,Nest1.hpp
+deep,Nest2,Nest1,,,,false,n2,Nest2.hpp
+deep,Nest3,Nest2,,,,false,n3,Nest3.hpp
+deep,Nest4,Nest3,,,,false,n4,Nest4.hpp
+deep,Root,Nest4,,,,false,deeply nested,Root.hpp

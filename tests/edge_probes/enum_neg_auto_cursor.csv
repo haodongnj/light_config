@@ -1,0 +1,4 @@
+__metadata__,namespace=edge
+__enum__,enum_name=NegAuto,enum_def=a|b=-2|c,hpp_file=negauto.hpp
+field_name,group,type,default,min,max,optional,description,hpp_file
+v,NegAutoConfig,NegAuto,a,,,false,neg-auto enum,negauto.hpp

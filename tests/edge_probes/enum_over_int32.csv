@@ -1,0 +1,4 @@
+__metadata__,namespace=edge
+__enum__,enum_name=Over,enum_def=a=2147483648,hpp_file=over.hpp
+field_name,group,type,default,min,max,optional,description,hpp_file
+v,OverConfig,Over,a,,,false,over int32,over.hpp

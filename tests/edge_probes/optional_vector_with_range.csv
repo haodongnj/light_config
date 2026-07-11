@@ -1,0 +1,3 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+v,OptVector,vector<int>,,1,100,true,optional vector with range,OV.hpp

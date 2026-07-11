@@ -22,11 +22,19 @@ namespace light_config {
 ///
 /// `.yaml` / `.yml` → YAML; `.json` → JSON; no extension → JSON (default);
 /// anything else → Auto (caller should return kUnrecognizedFormat).
+/// Extension matching is case-insensitive (`.YAML`, `.JSON`, `.Yml` all
+/// recognized) — REVIEW.md H3.
 inline Format detect_format(const std::string& path) {
     auto dot = path.rfind('.');
     if (dot == std::string::npos)
         return Format::Json;  // no extension
-    auto ext = path.substr(dot);
+    // Lowercase the extension (ASCII) for case-insensitive comparison.
+    std::string ext;
+    ext.reserve(path.size() - dot);
+    for (size_t i = dot; i < path.size(); ++i) {
+        char c = path[i];
+        ext.push_back(c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c);
+    }
     if (ext == ".yaml" || ext == ".yml")
         return Format::Yaml;
     if (ext == ".json")

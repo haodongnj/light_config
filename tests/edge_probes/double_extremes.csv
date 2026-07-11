@@ -1,0 +1,5 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+v,BoundsConfig,double,-0.0,,,false,negative zero,B.hpp
+inf,BoundsConfig,double,1e308,0,1.7e308,false,near inf,B.hpp
+nan,BoundsConfig,double,0.0,,,false,has NaN-near default,B.hpp

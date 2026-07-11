@@ -1,0 +1,6 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+semi,Semicolon,string,"a;b;c",,,false,default with semicolons,S.hpp
+quote,Quote,string,"she said ""hi""",,,false,default with escaped quotes,Q.hpp
+bracket,Bracket,string,"[bracket]",,,false,default with brackets,B.hpp
+trailcomma,Trail,string,"trailing,",,,false,trailing comma,T.hpp

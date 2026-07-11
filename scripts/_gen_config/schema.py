@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .types import (
     _BUILTIN_TYPES,
+    _VECTOR_TYPES,
     _is_optional,
     _int_range,
     _row_location,
@@ -17,6 +18,13 @@ from .types import (
     INT_TYPES,
 )
 from .exceptions import GeneratorError
+
+
+# iguana's enum_value<T>::value is std::array<int, N>, so every enumerator
+# value must fit in a C++ `int`.  Python ints are unbounded, so the parser
+# must reject out-of-range values explicitly (C3).
+_INT32_MIN = -2147483648
+_INT32_MAX = 2147483647
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +217,19 @@ class SchemaModel:
                             f"'enum_name={enum_name}' enumerator '{name}' "
                             f"has non-integer value '{val_str}'."
                         )
+                    # iguana's enum_value<T>::value is std::array<int, N>, so
+                    # an explicit enumerator value must fit in a C++ `int`.
+                    # A value >= 2**31 or < -2**31 would emit a narrowing
+                    # error in both the enum definition and the specialization
+                    # (C3).
+                    if not (_INT32_MIN <= val <= _INT32_MAX):
+                        raise GeneratorError(
+                            f"[{csv_name}:{line_num}] __enum__ row "
+                            f"'enum_name={enum_name}' enumerator '{name}' "
+                            f"has value {val} outside the C++ int range "
+                            f"[{_INT32_MIN}, {_INT32_MAX}] (iguana stores "
+                            f"enum values as int)."
+                        )
                     claimed_ints.add(val)
 
             # Second pass: build list, auto-assign gaps
@@ -324,18 +345,50 @@ class SchemaModel:
                 if csv_type in INT_TYPES:
                     self._validate_int_literals(row, csv_type)
 
-                # Reject min/max on enum fields — yalantinglibs handles
-                # parse-time rejection of invalid enumerator strings,
-                # and range constraints on enums have no meaning.
-                if csv_type in self.enums:
+                # Reject non-empty defaults on vector<*> fields (C1).  The
+                # generator has no C++ initializer syntax for vector literals
+                # today — a non-empty default would be emitted verbatim and
+                # produce non-compiling code (e.g. `std::vector<int> v = 1,2,3;`
+                # or `= ["a","b"];`).  An empty/absent default is fine.
+                if csv_type in _VECTOR_TYPES:
+                    default = (row.get("default") or "").strip()
+                    if default:
+                        where = _row_location(row)
+                        field = row["field_name"].strip()
+                        raise GeneratorError(
+                            f"{where} field '{field}' has a non-empty default "
+                            f"'{default}' on vector type '{csv_type}' — vector "
+                            f"defaults are not supported (leave the cell empty)."
+                        )
+
+                # Reject min/max on types where a C++ ordering comparison is
+                # either meaningless or non-compiling:
+                #   - enum   (C4 / original guard): range constraints on enums
+                #     have no meaning; yalantinglibs rejects bad enumerators.
+                #   - string (C4): `cfg.s < 5` is `std::string` vs `int` —
+                #     no implicit conversion → compile error.
+                #   - bool   (C4): compiles but is semantically meaningless
+                #     (bool promoted to int).
+                #   - vector<*> (C4): `cfg.v < 1` is `std::vector` vs `int` →
+                #     compile error.  A length/size constraint would need its
+                #     own codegen.
+                is_unconstrainable = (
+                    csv_type in self.enums
+                    or csv_type == "string"
+                    or csv_type == "bool"
+                    or csv_type in _VECTOR_TYPES
+                )
+                if is_unconstrainable:
                     for col in ("min", "max"):
                         if (row.get(col) or "").strip():
                             where = _row_location(row)
                             field = row["field_name"].strip()
+                            kind = "enum" if csv_type in self.enums else csv_type
                             raise GeneratorError(
                                 f"{where} field '{field}' "
-                                f"has '{col}' constraint on enum type "
-                                f"'{csv_type}' — min/max are not supported on enums."
+                                f"has '{col}' constraint on {kind} type "
+                                f"'{csv_type}' — min/max are not supported on "
+                                f"this type."
                             )
     def _validate_int_literals(self, row: dict, csv_type: str) -> None:
         """Reject default/min/max literals that don't fit the integer width."""

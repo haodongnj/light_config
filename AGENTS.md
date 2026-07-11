@@ -38,8 +38,11 @@ configured in `.clang-format`). VS Code auto-formats on save via the `xaver.clan
 extension (configured in `.vscode/settings.json`).
 
 ```bash
-# CI-style dry-run (fail if anything would change)
-find include examples tests -name '*.cpp' -o -name '*.hpp' -o -name '*.h' | xargs clang-format --dry-run --Werror
+# CI-style dry-run (fail if anything would change).  The -name group must be
+# parenthesized so -print binds to the whole OR expression; without the
+# parens, GNU find's implicit -print binds only to the last -name term.
+find include examples tests \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -print \
+    | xargs clang-format --dry-run --Werror
 
 # Opt-in clang-tidy during compilation
 cmake -B build -S . -DENABLE_CLANG_TIDY=ON

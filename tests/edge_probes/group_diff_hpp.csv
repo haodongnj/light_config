@@ -1,0 +1,4 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+a,Nested,string,x,,,false,nest,Nested.hpp
+b,Nested,int,5,,,false,nest conflicting hpp,Nested2.hpp

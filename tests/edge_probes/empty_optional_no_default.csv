@@ -1,0 +1,4 @@
+__metadata__,namespace=edge
+field_name,group,type,default,min,max,optional,description,hpp_file
+v,EmptyStruct,int,5,,,false,only field,Empty.hpp
+e,EmptyStruct,,,,,true,optional empty,E.hpp

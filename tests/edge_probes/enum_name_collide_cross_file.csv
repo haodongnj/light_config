@@ -1,0 +1,5 @@
+__metadata__,namespace=edge
+__enum__,enum_name=Collide,enum_def=x=1|y=2,hpp_file=collide_a.hpp
+__enum__,enum_name=Collide,enum_def=x=1|y=2,hpp_file=collide_b.hpp
+field_name,group,type,default,min,max,optional,description,hpp_file
+v,CollideConfig,Collide,x,,,false,cross-file enum name collide,collide_a.hpp

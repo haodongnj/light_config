@@ -31,6 +31,15 @@ _BUILTIN_TYPES: set[str] = {
     "vector<string>", "vector<int>", "vector<double>",
 }
 
+# Vector CSV type cells.  Used by validation to reject defaults and min/max
+# bounds on vector fields — the generator has no C++ initializer syntax for
+# vector literals today, and range constraints on a container are not meaningful
+# (a length/size constraint would be a separate feature requiring distinct
+# codegen).
+_VECTOR_TYPES: frozenset[str] = frozenset({
+    "vector<string>", "vector<int>", "vector<double>",
+})
+
 
 def map_type(csv_type: str) -> str:
     """Map CSV type string to C++ type, or pass through if not a built-in."""
