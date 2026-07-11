@@ -21,6 +21,10 @@ struct Box {
     std::optional<std::string> label;
 };
 YLT_REFL(Box, items, label);
+struct ItemList {
+    std::optional<std::vector<Item>> items;
+};
+YLT_REFL(ItemList, items);
 
 struct Versioned {
     std::string name;
@@ -160,6 +164,33 @@ TEST_CASE("H6: vector<Item> element optional field reported via items[]") {
 }
 
 // ============================================================================
+TEST_CASE("H6: optional<vector<Item>> audit recurses into elements") {
+    ItemList il;
+    auto r = light_config::load_from_json_string(il, R"({
+        "items": [ {"name":"a","qty":1} ]
+    })");
+    CHECK(r.ok());
+    CHECK(contains(r.present_fields, "items"));
+    CHECK(contains(r.present_fields, "items[].name"));
+    CHECK(contains(r.present_fields, "items[].qty"));
+    CHECK(contains(r.absent_optionals, "items[].tag"));
+}
+
+TEST_CASE("H6: optional<vector<Item>> mixed absent tag reported") {
+    ItemList il;
+    auto r = light_config::load_from_json_string(il, R"({
+        "items": [
+            {"name":"full","qty":1,"tag":"opt"},
+            {"name":"bare","qty":2}
+        ]
+    })");
+    CHECK(r.ok());
+    CHECK(contains(r.present_fields, "items"));
+    CHECK(contains(r.present_fields, "items[].name"));
+    CHECK(contains(r.present_fields, "items[].qty"));
+    CHECK(contains(r.absent_optionals, "items[].tag"));
+}
+
 // Scenario [5]: empty JSON string is a parse error (already-correct behavior).
 // ============================================================================
 
