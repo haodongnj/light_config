@@ -65,20 +65,22 @@ template <typename T>
         // ---- Optional-field audit (must run BEFORE from_json) ----
         // The audit walks the JSON DOM to discover which optional fields are
         // physically present vs. absent in the document — info that from_json
-        // discards.  It mutates the struct as it goes (sets absent optionals
-        // to nullopt, clears vectors and pushes back default-scaffold elements
-        // in the recursion branches, etc.), but those mutations happen
-        // on the default-constructed struct and are transient scaffolding to
-        // drive the for_each / for loops.  The real data comes from the
-        // from_json call immediately below, which re-parses the raw JSON
-        // string and overwrites all fields.
+        // discards.  We run the audit on a default-constructed temporary
+        // rather than the caller's config: the audit only needs the struct's
+        // type information (via for_each over YLT_REFL members) to discover
+        // presence/absence.  The struct mutations (nullopt, vector
+        // push_backs, etc.) are transient scaffolding to drive the
+        // iteration, and running them on a temporary keeps the caller's
+        // config untouched if the subsequent from_json fails.
         //     IMPORTANT: from_json must ALWAYS run after the audit, never
         // before.  Any refactor that swaps this ordering would silently
-        // corrupt nested-struct and vector fields (these recursion branches zero
-        // out freshly-populated data), and the test suite would not catch it
-        // (tests only assert the audit lists, not the struct values after
-        // loading).
-        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
+        // corrupt nested-struct and vector fields (these recursion branches
+        // zero out freshly-populated data), and the test suite would not
+        // catch it (tests only assert the audit lists, not the struct values
+        // after loading).
+        T audit_temp{};
+        detail::audit_json_recursive(audit_temp, dom, result.absent_optionals,
+                                     result.present_fields);
     } catch (const std::exception& e) {
         return Result::failure(ErrorCode::kJsonParseError, e.what());
     }
@@ -129,9 +131,12 @@ template <typename T>
         // ---- Optional-field audit (must run BEFORE from_json) ----
         // See the identical comment in load_from_json_file for the full
         // rationale.  In short: the audit discovers field presence from the
-        // DOM and its struct mutations are transient scaffolding that
-        // from_json overwrites.  from_json must ALWAYS run after the audit.
-        detail::audit_json_recursive(config, dom, result.absent_optionals, result.present_fields);
+        // DOM using a default-constructed temporary; the struct mutations are
+        // transient scaffolding that from_json overwrites.  from_json must
+        // ALWAYS run after the audit.
+        T audit_temp{};
+        detail::audit_json_recursive(audit_temp, dom, result.absent_optionals,
+                                     result.present_fields);
     } catch (const std::exception& e) {
         return Result::failure(ErrorCode::kJsonParseError, e.what());
     }
