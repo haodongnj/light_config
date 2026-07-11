@@ -61,6 +61,38 @@ template <typename T>
     return load_from_json_file(config, path);
 }
 
+/// Infer format from file extension, load the config, and run a validator.
+///
+/// Combines load() and validation into a single call so that forgetting
+/// validation is not possible.  If loading fails the load error is returned
+/// without calling the validator.  If loading succeeds, the validator is
+/// invoked on the populated config; a validation failure is returned as
+/// kValidationError, otherwise the load result (with audit info) is returned.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result
+///                    (e.g. generated validate_AppConfig).
+/// \param[out] config  Populated config struct.
+/// \param[in]  path    Path to the config file (JSON or YAML).
+/// \param[in]  validator  Validation function.
+/// \param[in]  format  Expected format (Auto detects from extension).
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_and_validate(T& config, const std::string& path, Validator&& validator,
+                                       Format format = Format::Auto) {
+    if (format == Format::Auto) {
+        format = detect_format(path);
+    }
+    if (format == Format::Auto) {
+        return Result::failure(ErrorCode::kUnrecognizedFormat,
+                               "cannot determine format from file extension '" + path + "'");
+    }
+    if (format == Format::Yaml) {
+        return load_from_yaml_file_and_validate(config, path, std::forward<Validator>(validator));
+    }
+    return load_from_json_file_and_validate(config, path, std::forward<Validator>(validator));
+}
+
 /// Load with schema version enforcement.
 ///
 /// When \p expected_schema_version is non-empty, the loader checks the
@@ -83,6 +115,43 @@ template <typename T>
         return load_from_yaml_file(config, path, expected_schema_version);
     }
     return load_from_json_file(config, path, expected_schema_version);
+}
+
+/// Load with schema version enforcement, then run a validator.
+///
+/// Combines load_versioned() and validation into a single call.  If loading
+/// or schema check fails the error is returned without calling the validator.
+/// If loading succeeds, the validator is invoked on the populated config;
+/// a validation failure is returned as kValidationError, otherwise the load
+/// result (with audit info) is returned.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result
+///                    (e.g. generated validate_AppConfig).
+/// \param[out] config  Populated config struct.
+/// \param[in]  path    Path to the config file (JSON or YAML).
+/// \param[in]  expected_schema_version  Required schema version.
+/// \param[in]  validator  Validation function.
+/// \param[in]  format  Expected format (Auto detects from extension).
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_versioned_and_validate(T& config, const std::string& path,
+                                                 std::string_view expected_schema_version,
+                                                 Validator&& validator,
+                                                 Format format = Format::Auto) {
+    if (format == Format::Auto) {
+        format = detect_format(path);
+    }
+    if (format == Format::Auto) {
+        return Result::failure(ErrorCode::kUnrecognizedFormat,
+                               "cannot determine format from file extension '" + path + "'");
+    }
+    if (format == Format::Yaml) {
+        return load_from_yaml_file_and_validate(config, path, std::forward<Validator>(validator),
+                                                expected_schema_version);
+    }
+    return load_from_json_file_and_validate(config, path, std::forward<Validator>(validator),
+                                            expected_schema_version);
 }
 
 }  // namespace light_config

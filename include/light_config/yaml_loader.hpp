@@ -50,6 +50,35 @@ template <typename T>
     return result;
 }
 
+/// Load a YAML config file, then run a caller-supplied validator.
+///
+/// Combines load_from_yaml_file and validation into a single call.  If loading
+/// fails the load error is returned without calling the validator.  If loading
+/// succeeds, the validator is invoked on the populated config; a validation
+/// failure is returned as kValidationError, otherwise the load result (with
+/// audit info) is returned.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result
+///                    (e.g. generated validate_AppConfig).
+/// \param[out] config  Populated config struct.
+/// \param[in]  path    Path to the YAML file.
+/// \param[in]  validator  Validation function.
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_from_yaml_file_and_validate(T& config, const std::string& path,
+                                                      Validator&& validator) {
+    auto r = load_from_yaml_file(config, path);
+    if (!r.ok()) {
+        return r;
+    }
+    auto vr = std::forward<Validator>(validator)(config);
+    if (!vr.ok()) {
+        return vr;
+    }
+    return r;
+}
+
 /// Load a YAML string into a struct with optional-field audit.
 template <typename T>
 [[nodiscard]] Result load_from_yaml_string(T& config, const std::string& yaml_str) {
@@ -64,6 +93,35 @@ template <typename T>
     detail::audit_yaml_recursive(config, result.absent_optionals, result.present_fields);
 
     return result;
+}
+
+/// Load a YAML string, then run a caller-supplied validator.
+///
+/// Combines load_from_yaml_string and validation into a single call.  If
+/// loading fails the load error is returned without calling the validator.
+/// If loading succeeds, the validator is invoked on the populated config;
+/// a validation failure is returned as kValidationError, otherwise the load
+/// result (with audit info) is returned.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result
+///                    (e.g. generated validate_AppConfig).
+/// \param[out] config  Populated config struct.
+/// \param[in]  yaml_str  YAML string to parse.
+/// \param[in]  validator  Validation function.
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_from_yaml_string_and_validate(T& config, const std::string& yaml_str,
+                                                        Validator&& validator) {
+    auto r = load_from_yaml_string(config, yaml_str);
+    if (!r.ok()) {
+        return r;
+    }
+    auto vr = std::forward<Validator>(validator)(config);
+    if (!vr.ok()) {
+        return vr;
+    }
+    return r;
 }
 
 /// Load a YAML string with optional schema version check.
@@ -136,6 +194,35 @@ template <typename T>
     return load_from_yaml_string(config, yaml_str);
 }
 
+/// Load a YAML string with schema version check, then run a validator.
+///
+/// Combines schema-versioned load_from_yaml_string and validation into a
+/// single call.  If loading or schema check fails the error is returned
+/// without calling the validator.  If loading succeeds, the validator runs
+/// on the populated config.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result.
+/// \param[out] config  Populated config struct.
+/// \param[in]  yaml_str  YAML string to parse.
+/// \param[in]  validator  Validation function.
+/// \param[in]  expected_schema_version  Schema version to check.
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_from_yaml_string_and_validate(T& config, const std::string& yaml_str,
+                                                        Validator&& validator,
+                                                        std::string_view expected_schema_version) {
+    auto r = load_from_yaml_string(config, yaml_str, expected_schema_version);
+    if (!r.ok()) {
+        return r;
+    }
+    auto vr = std::forward<Validator>(validator)(config);
+    if (!vr.ok()) {
+        return vr;
+    }
+    return r;
+}
+
 /// Load a YAML file with optional schema version check.
 template <typename T>
 [[nodiscard]] Result load_from_yaml_file(T& config, const std::string& path,
@@ -147,6 +234,35 @@ template <typename T>
     }
 
     return load_from_yaml_string(config, content, expected_schema_version);
+}
+
+/// Load a YAML file with schema version check, then run a validator.
+///
+/// Combines schema-versioned load_from_yaml_file and validation into a
+/// single call.  If loading or schema check fails the error is returned
+/// without calling the validator.  If loading succeeds, the validator runs
+/// on the populated config.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result.
+/// \param[out] config  Populated config struct.
+/// \param[in]  path    Path to the YAML file.
+/// \param[in]  validator  Validation function.
+/// \param[in]  expected_schema_version  Schema version to check.
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_from_yaml_file_and_validate(T& config, const std::string& path,
+                                                      Validator&& validator,
+                                                      std::string_view expected_schema_version) {
+    auto r = load_from_yaml_file(config, path, expected_schema_version);
+    if (!r.ok()) {
+        return r;
+    }
+    auto vr = std::forward<Validator>(validator)(config);
+    if (!vr.ok()) {
+        return vr;
+    }
+    return r;
 }
 
 /// Serialize a config struct to a YAML string.

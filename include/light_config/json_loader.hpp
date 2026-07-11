@@ -95,6 +95,37 @@ template <typename T>
     return result;
 }
 
+/// Load a JSON config file, then run a caller-supplied validator.
+///
+/// Combines load_from_json_file and validation into a single call.  If loading
+/// fails the load error is returned without calling the validator.  If loading
+/// succeeds, the validator is invoked on the populated config; a validation
+/// failure is returned as kValidationError, otherwise the load result (with
+/// audit info) is returned.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result
+///                    (e.g. generated validate_AppConfig).
+/// \param[out] config  Populated config struct.
+/// \param[in]  path    Path to the JSON file.
+/// \param[in]  validator  Validation function.
+/// \param[in]  expected_schema_version  If non-empty, check `$schema` key.
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_from_json_file_and_validate(
+    T& config, const std::string& path, Validator&& validator,
+    std::string_view expected_schema_version = "") {
+    auto r = load_from_json_file(config, path, expected_schema_version);
+    if (!r.ok()) {
+        return r;
+    }
+    auto vr = std::forward<Validator>(validator)(config);
+    if (!vr.ok()) {
+        return vr;
+    }
+    return r;
+}
+
 /// Load a JSON string into a struct with optional-field audit.
 ///
 /// When \p expected_schema_version is non-empty, the loader checks for a
@@ -149,6 +180,37 @@ template <typename T>
     }
 
     return result;
+}
+
+/// Load a JSON string, then run a caller-supplied validator.
+///
+/// Combines load_from_json_string and validation into a single call.  If
+/// loading fails the load error is returned without calling the validator.
+/// If loading succeeds, the validator is invoked on the populated config;
+/// a validation failure is returned as kValidationError, otherwise the load
+/// result (with audit info) is returned.
+///
+/// \tparam T  A struct annotated with YLT_REFL.
+/// \tparam Validator  Callable accepting `const T&` and returning Result
+///                    (e.g. generated validate_AppConfig).
+/// \param[out] config  Populated config struct.
+/// \param[in]  json_str  JSON string to parse.
+/// \param[in]  validator  Validation function.
+/// \param[in]  expected_schema_version  If non-empty, check `$schema` key.
+/// \return     Result with code==kOk, field audit, and validation pass.
+template <typename T, typename Validator>
+[[nodiscard]] Result load_from_json_string_and_validate(
+    T& config, const std::string& json_str, Validator&& validator,
+    std::string_view expected_schema_version = "") {
+    auto r = load_from_json_string(config, json_str, expected_schema_version);
+    if (!r.ok()) {
+        return r;
+    }
+    auto vr = std::forward<Validator>(validator)(config);
+    if (!vr.ok()) {
+        return vr;
+    }
+    return r;
 }
 
 /// Serialize a config struct to a JSON string.
