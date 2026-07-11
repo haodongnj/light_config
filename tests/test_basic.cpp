@@ -69,7 +69,7 @@ YLT_REFL(OuterVec, name, inner);
 // A payload bigger than the typical ofstream buffer forces operator<< to
 // flush (or buffer) a substantial amount of data, so a round-trip through
 // save_to_json_file / save_to_yaml_file exercises the write-and-flush code
-// path rather than just an in-buffer `<<`.  Guards the C6 write-flush fix.
+// path rather than just an in-buffer `<<`.  Guards the write-flush fix.
 struct LargeConfig {
     std::string name;
     std::vector<int> numbers;
@@ -521,7 +521,7 @@ TEST_CASE("Round-trip: YAML file save + load") {
     CHECK(parsed.flag == original.flag);
 }
 
-// ---- C6: write-flush detection.  A payload larger than the typical ofstream
+// ---- write-flush detection.  A payload larger than the typical ofstream
 // buffer forces the write path to flush, so a round-trip through
 // save_to_json_file / save_to_yaml_file exercises the flush-and-check code
 // rather than just the in-buffer operator<<.  Data integrity on reload is the
@@ -534,7 +534,7 @@ TEST_CASE("save_to_json_file: large payload round-trips (flush path)") {
     original.name = "large_payload";
     // ~256k integers — well beyond any default ofstream buffer, so the
     // final flush is the operation whose success the save function must
-    // detect (the C6 fix: check after explicit flush, before/around close).
+    // detect (the fix: check after explicit flush, before/around close).
     original.numbers.resize(256 * 1024);
     for (size_t i = 0; i < original.numbers.size(); ++i) {
         original.numbers[i] = static_cast<int>(i % 1000);
@@ -597,7 +597,7 @@ TEST_CASE("save_to_yaml_file: large payload round-trips (flush path)") {
     std::filesystem::remove(path);
 }
 
-// ---- C7a: to_json / to_yaml expose an err out-param so save_to_* can surface
+// ---- to_json / to_yaml expose an err out-param so save_to_* can surface
 // the underlying exception message instead of a bare "failed to serialize"
 // string.  On the happy path the err out-param stays empty and the optional
 // is populated; this guards the new API surface without faking a throw

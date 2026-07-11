@@ -67,14 +67,14 @@ Result load_from_json_file(T& config, const std::string& path,
         // physically present vs. absent in the document — info that from_json
         // discards.  It mutates the struct as it goes (sets absent optionals
         // to nullopt, clears vectors and pushes back default-scaffold elements
-        // in the H6[ab] recursion branches, etc.), but those mutations happen
+        // in the recursion branches, etc.), but those mutations happen
         // on the default-constructed struct and are transient scaffolding to
         // drive the for_each / for loops.  The real data comes from the
         // from_json call immediately below, which re-parses the raw JSON
         // string and overwrites all fields.
         //     IMPORTANT: from_json must ALWAYS run after the audit, never
         // before.  Any refactor that swaps this ordering would silently
-        // corrupt nested-struct and vector fields (the H6a/H6b branches zero
+        // corrupt nested-struct and vector fields (these recursion branches zero
         // out freshly-populated data), and the test suite would not catch it
         // (tests only assert the audit lists, not the struct values after
         // loading).

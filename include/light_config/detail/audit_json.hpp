@@ -43,7 +43,7 @@ void audit_json_recursive(T& obj, const iguana::jobject& dom,
                                          full_name);
                 }
             }
-            // (H6a) Recurse into a present std::optional<T> when T is a
+            // Recurse into a present std::optional<T> when T is a
             // YLT_REFL struct and the DOM value is an object (not null).
             else if constexpr (is_optional_v<field_t>) {
                 using inner_t = typename field_t::value_type;
@@ -56,7 +56,7 @@ void audit_json_recursive(T& obj, const iguana::jobject& dom,
                                              full_name);
                     }
                 }
-                // (H6a extended) Recurse into a present
+                // Recurse into a present
                 // std::optional<std::vector<T>> of YLT_REFL structs.
                 // Report element subfields with an index-agnostic "[]"
                 // path segment (audit reports presence, not positions).
@@ -82,7 +82,7 @@ void audit_json_recursive(T& obj, const iguana::jobject& dom,
                     }
                 }
             }
-            // (H6b) Recurse into a std::vector<T> (or array) of YLT_REFL
+            // Recurse into a std::vector<T> (or array) of YLT_REFL
             // structs.  Report element subfields with an index-agnostic
             // "[]" path segment (audit reports presence, not positions).
             else if constexpr (is_range_v<field_t>) {
