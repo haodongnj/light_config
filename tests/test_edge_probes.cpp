@@ -200,3 +200,71 @@ TEST_CASE("empty JSON string -> kJsonParseError") {
     CHECK(!r.ok());
     CHECK(r.code == light_config::ErrorCode::kJsonParseError);
 }
+
+// ============================================================================
+// M5: YAML $schema value should not pick up trailing # comments.
+// ============================================================================
+
+TEST_CASE("$schema with trailing # comment is stripped (M5 fix)") {
+    Versioned v;
+    // M5 fix: the scanner now strips trailing # comments from the version
+    // value, so "$schema: 1.0.0  # comment" correctly matches "1.0.0".
+    std::string yaml = "$schema: 1.0.0  # this is a comment\nname: x\nvalue: 1\n";
+    auto r = light_config::load_from_yaml_string(v, yaml, kVer);
+    CHECK(r.ok());
+    CHECK(v.value == 1);
+}
+
+TEST_CASE("$schema with trailing # comment and mismatched version rejected") {
+    Versioned v;
+    std::string yaml = "$schema: 2.0.0  # trailing comment\nname: x\nvalue: 1\n";
+    auto r = light_config::load_from_yaml_string(v, yaml, kVer);
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kSchemaMismatch);
+}
+
+// ============================================================================
+// YAML nested struct audit — direct nesting (YLT_REFL member) works, but
+// optional<Struct> does not (known H11 limitation).  The YAML audit only
+// recurses into members where the field type itself is YLT_REFL; it does not
+// unwrap optional<T> or vector<T> to check the inner type.  The JSON audit
+// (audit_json.hpp) handles all three patterns.
+// ============================================================================
+
+TEST_CASE("YAML optional<Struct>: sub-struct present but subfields not recursed (H11)") {
+    // Outer has 'inner' of type std::optional<Inner> — the YAML audit reports
+    // 'inner' as present but does NOT recurse into inner.host / inner.port.
+    Outer o;
+    auto r = light_config::load_from_yaml_string(o, R"(
+app: yaml_app
+inner:
+  host: 10.0.0.1
+  port: 8080
+)");
+    CHECK(r.ok());
+    CHECK(o.app == "yaml_app");
+    CHECK(o.inner.has_value());
+    CHECK(o.inner->host == "10.0.0.1");
+    CHECK(o.inner->port.has_value());
+    // Struct loads correctly, but YAML audit is limited:
+    CHECK(contains(r.present_fields, "app"));
+    CHECK(contains(r.present_fields, "inner"));
+    // H11 limitation: these are NOT reported (YAML audit doesn't recurse into
+    // optional<Struct>; JSON audit does).
+    // CHECK(contains(r.present_fields, "inner.host"));
+    // CHECK(contains(r.present_fields, "inner.port"));
+}
+
+TEST_CASE("YAML optional<Struct>: inner.port absent not reported (H11)") {
+    Outer o;
+    auto r = light_config::load_from_yaml_string(o, R"(
+app: yaml_app
+inner:
+  host: 10.0.0.1
+)");
+    CHECK(r.ok());
+    CHECK(!o.inner->port.has_value());
+    // H11 limitation: absent_optionals does NOT contain "inner.port"
+    // because the YAML audit doesn't recurse into optional<Struct>.
+    // CHECK(contains(r.absent_optionals, "inner.port"));
+}

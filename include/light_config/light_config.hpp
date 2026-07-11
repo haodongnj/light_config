@@ -48,6 +48,10 @@ inline Format detect_format(const std::string& path) {
 /// kUnrecognizedFormat error.
 template <typename T>
 [[nodiscard]] Result load(T& config, const std::string& path, Format format = Format::Auto) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     if (format == Format::Auto) {
         format = detect_format(path);
     }
@@ -80,6 +84,10 @@ template <typename T>
 template <typename T, typename Validator>
 [[nodiscard]] Result load_and_validate(T& config, const std::string& path, Validator&& validator,
                                        Format format = Format::Auto) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     if (format == Format::Auto) {
         format = detect_format(path);
     }
@@ -104,6 +112,10 @@ template <typename T>
 [[nodiscard]] Result load_versioned(T& config, const std::string& path,
                                     std::string_view expected_schema_version,
                                     Format format = Format::Auto) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     if (format == Format::Auto) {
         format = detect_format(path);
     }
@@ -139,6 +151,10 @@ template <typename T, typename Validator>
                                                  std::string_view expected_schema_version,
                                                  Validator&& validator,
                                                  Format format = Format::Auto) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     if (format == Format::Auto) {
         format = detect_format(path);
     }
