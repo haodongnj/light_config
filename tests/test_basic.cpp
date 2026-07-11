@@ -92,6 +92,28 @@ YLT_REFL(VersionedConfig, name, value);
 // Simulates what gen_config.py emits:
 constexpr std::string_view kVersionedConfigSchemaVersion{"2.0.0"};
 
+// ---- Structs for deep-nesting tests (>2 levels) ----
+
+struct DeepLevel3 {
+    std::string tag;
+    std::optional<int> weight;
+};
+YLT_REFL(DeepLevel3, tag, weight);
+
+struct DeepLevel2 {
+    std::string region;
+    DeepLevel3 leaf;
+    std::optional<std::string> note;
+};
+YLT_REFL(DeepLevel2, region, leaf, note);
+
+struct DeepLevel1 {
+    std::string cluster;
+    DeepLevel2 middle;
+    int priority = 0;
+};
+YLT_REFL(DeepLevel1, cluster, middle, priority);
+
 // ============================================================================
 // JSON Tests
 // ============================================================================
@@ -201,6 +223,34 @@ TEST_CASE("JSON missing file error") {
     auto r = light_config::load_from_json_file(cfg, "/nonexistent/path.json");
     CHECK(!r.ok());
     CHECK(r.code == light_config::ErrorCode::kFileReadError);
+    CHECK(!r.message.empty());
+}
+
+TEST_CASE("kFileEmpty: empty JSON file") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_empty.json").string();
+    {
+        std::ofstream f(path);
+        // Create an empty file.
+    }
+    TestConfig cfg;
+    auto r = light_config::load_from_json_file(cfg, path);
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kFileEmpty);
+    CHECK(!r.message.empty());
+}
+
+TEST_CASE("kFileEmpty: empty YAML file") {
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "light_config_test_empty.yaml").string();
+    {
+        std::ofstream f(path);
+        // Create an empty file.
+    }
+    TestConfig cfg;
+    auto r = light_config::load_from_yaml_file(cfg, path);
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kFileEmpty);
     CHECK(!r.message.empty());
 }
 
@@ -329,6 +379,140 @@ TEST_CASE("JSON nested struct: inner.port absent") {
     CHECK(has_port_absent);
 }
 
+// ---- Deep nesting (>2 levels) ----
+
+TEST_CASE("JSON deep nesting: 3 levels, all fields present") {
+    DeepLevel1 cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "cluster": "us-east",
+        "priority": 1,
+        "middle": {
+            "region": "us-east-1",
+            "note": "primary",
+            "leaf": {
+                "tag": "prod",
+                "weight": 100
+            }
+        }
+    })");
+    CHECK(r.ok());
+    CHECK(cfg.cluster == "us-east");
+    CHECK(cfg.priority == 1);
+    CHECK(cfg.middle.region == "us-east-1");
+    CHECK(cfg.middle.note.has_value());
+    CHECK(cfg.middle.note.value() == "primary");
+    CHECK(cfg.middle.leaf.tag == "prod");
+    CHECK(cfg.middle.leaf.weight.has_value());
+    CHECK(cfg.middle.leaf.weight.value() == 100);
+    // Dot-separated paths for 3-level nesting:
+    // cluster, priority, middle, middle.region, middle.note, middle.leaf,
+    // middle.leaf.tag, middle.leaf.weight = 8.
+    CHECK(r.present_fields.size() == 8);
+    CHECK(r.absent_optionals.empty());
+}
+
+TEST_CASE("JSON deep nesting: leaf subfields absent") {
+    DeepLevel1 cfg;
+    auto r = light_config::load_from_json_string(cfg, R"({
+        "cluster": "us-west",
+        "middle": {
+            "region": "us-west-2",
+            "leaf": {
+                "tag": "staging"
+            }
+        }
+    })");
+    CHECK(r.ok());
+    CHECK(cfg.cluster == "us-west");
+    CHECK(cfg.middle.region == "us-west-2");
+    CHECK(cfg.middle.leaf.tag == "staging");
+    CHECK(!cfg.middle.leaf.weight.has_value());
+    CHECK(!cfg.middle.note.has_value());
+    // Absent: middle.note, middle.leaf.weight
+    CHECK(r.absent_optionals.size() == 2);
+    bool has_weight = false, has_note = false;
+    for (auto& name : r.absent_optionals) {
+        if (name == "middle.leaf.weight")
+            has_weight = true;
+        if (name == "middle.note")
+            has_note = true;
+    }
+    CHECK(has_weight);
+    CHECK(has_note);
+}
+
+TEST_CASE("YAML deep nesting: 3 levels, all fields present") {
+    DeepLevel1 cfg;
+    auto r = light_config::load_from_yaml_string(cfg, R"(
+cluster: eu-west
+priority: 2
+middle:
+  region: eu-west-1
+  note: backup
+  leaf:
+    tag: staging
+    weight: 50
+)");
+    CHECK(r.ok());
+    CHECK(cfg.cluster == "eu-west");
+    CHECK(cfg.priority == 2);
+    CHECK(cfg.middle.region == "eu-west-1");
+    CHECK(cfg.middle.note.has_value());
+    CHECK(cfg.middle.note.value() == "backup");
+    CHECK(cfg.middle.leaf.tag == "staging");
+    CHECK(cfg.middle.leaf.weight.has_value());
+    CHECK(cfg.middle.leaf.weight.value() == 50);
+}
+
+// ---- NaN / Infinity in floating-point fields (M6) ----
+// YAML supports .nan, .inf, -.inf as special float values.  Verify that
+// loading them surfaces a parse error rather than silently propagating
+// non-finite values into the config struct (safety-critical applications
+// should not see NaN/Inf in config values).
+
+struct FloatProbe {
+    std::string label;
+    double ratio = 1.0;
+};
+YLT_REFL(FloatProbe, label, ratio);
+
+TEST_CASE("NaN/Inf probe: YAML .nan on double field is rejected") {
+    FloatProbe cfg;
+    auto r = light_config::load_from_yaml_string(cfg, "label: test\nratio: .nan\n");
+    // Either it's rejected as a parse error, or it loads and we check the value.
+    if (!r.ok()) {
+        // Expected: iguana rejects non-finite YAML floats.
+        CHECK((r.code == light_config::ErrorCode::kYamlParseError));
+    } else {
+        // If iguana accepts it, assert the value is NOT NaN (it must be rejected
+        // or sanitized for safety-critical use).
+        CHECK(r.ok());
+        CHECK(std::isfinite(cfg.ratio));
+    }
+}
+
+TEST_CASE("NaN/Inf probe: YAML .inf on double field is rejected") {
+    FloatProbe cfg;
+    auto r = light_config::load_from_yaml_string(cfg, "label: test\nratio: .inf\n");
+    if (!r.ok()) {
+        CHECK((r.code == light_config::ErrorCode::kYamlParseError));
+    } else {
+        CHECK(r.ok());
+        CHECK(std::isfinite(cfg.ratio));
+    }
+}
+
+TEST_CASE("NaN/Inf probe: YAML -.inf on double field is rejected") {
+    FloatProbe cfg;
+    auto r = light_config::load_from_yaml_string(cfg, "label: test\nratio: -.inf\n");
+    if (!r.ok()) {
+        CHECK((r.code == light_config::ErrorCode::kYamlParseError));
+    } else {
+        CHECK(r.ok());
+        CHECK(std::isfinite(cfg.ratio));
+    }
+}
+
 // ============================================================================
 // Round-Trip Tests
 // ============================================================================
@@ -453,6 +637,26 @@ TEST_CASE("Round-trip: JSON nested struct survives re-parse") {
     CHECK(parsed.inner.host == original.inner.host);
     CHECK(parsed.inner.port.has_value());
     CHECK(parsed.inner.port.value() == 8080);
+}
+
+TEST_CASE("Round-trip: YAML nested struct survives re-parse") {
+    OuterCfg original;
+    original.app_name = "yaml_nested";
+    original.version = 5;
+    original.inner.host = "10.0.0.1";
+    original.inner.port = 443;
+
+    auto yaml_opt = light_config::to_yaml(original);
+    REQUIRE(yaml_opt.has_value());
+
+    OuterCfg parsed;
+    auto r = light_config::load_from_yaml_string(parsed, yaml_opt.value());
+    CHECK(r.ok());
+    CHECK(parsed.app_name == original.app_name);
+    CHECK(parsed.version == original.version);
+    CHECK(parsed.inner.host == original.inner.host);
+    CHECK(parsed.inner.port.has_value());
+    CHECK(parsed.inner.port.value() == 443);
 }
 
 TEST_CASE("Round-trip: YAML serialization + re-parse") {
@@ -656,6 +860,15 @@ TEST_CASE("YAML empty document") {
     CHECK(r.absent_optionals.size() == 2);
 }
 
+TEST_CASE("kYamlParseError: invalid YAML syntax") {
+    TestConfig cfg;
+    // Bare list where a mapping is expected — cannot populate a struct.
+    auto r = light_config::load_from_yaml_string(cfg, "- item1\n- item2\n");
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kYamlParseError);
+    CHECK(!r.message.empty());
+}
+
 // ============================================================================
 // Format Auto-Detection
 // ============================================================================
@@ -710,6 +923,24 @@ TEST_CASE("Auto-detect no extension -> JSON") {
     auto r = light_config::load(cfg, path);
     CHECK(r.ok());
     CHECK(cfg.name == "noext");
+}
+
+TEST_CASE("kUnrecognizedFormat: .txt extension via load()") {
+    TestConfig cfg;
+    // detect_format returns Auto for .txt, load() returns kUnrecognizedFormat
+    // before any file I/O — the file doesn't need to exist.
+    auto r = light_config::load(cfg, "config.txt");
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kUnrecognizedFormat);
+    CHECK(!r.message.empty());
+}
+
+TEST_CASE("kUnrecognizedFormat: unrecognized extension via load_and_validate") {
+    TestConfig cfg;
+    auto r = light_config::load_and_validate(
+        cfg, "config.ini", [](const TestConfig&) { return light_config::Result::success(); });
+    CHECK(!r.ok());
+    CHECK(r.code == light_config::ErrorCode::kUnrecognizedFormat);
 }
 
 // ============================================================================
@@ -953,6 +1184,9 @@ TEST_CASE("enums: JSON load with invalid enum value fails") {
     EnumConfig cfg;
     auto r = light_config::load_from_json_string(cfg, R"({"priority": "unknown", "retries": 5})");
     CHECK(!r.ok());
+    // Invalid enum value triggers from_json failure → kJsonDeserializeError.
+    CHECK(r.code == light_config::ErrorCode::kJsonDeserializeError);
+    CHECK(!r.message.empty());
 }
 
 TEST_CASE("enums: YAML load with valid enum value") {

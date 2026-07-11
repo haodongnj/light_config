@@ -184,6 +184,19 @@ template <typename T>
                     auto ve = lv.find_last_not_of(" \t");
                     if (ve != std::string_view::npos)
                         lv = lv.substr(0, ve + 1);
+                    // Strip trailing # comment (YAML comments start with #
+                    // after a space; the value itself won't contain #).
+                    auto comment_pos = lv.find('#');
+                    if (comment_pos != std::string_view::npos) {
+                        lv = lv.substr(0, comment_pos);
+                        // Re-trim trailing whitespace after removing the
+                        // comment.
+                        auto ve2 = lv.find_last_not_of(" \t");
+                        if (ve2 != std::string_view::npos)
+                            lv = lv.substr(0, ve2 + 1);
+                        else
+                            lv = std::string_view{};
+                    }
                     // Strip one surrounding pair of " or '.
                     if (lv.size() >= 2) {
                         char f = lv.front(), l = lv.back();
