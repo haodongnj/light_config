@@ -29,6 +29,10 @@ namespace light_config {
 /// \return     Result with code==kOk and field audit on success.
 template <typename T>
 [[nodiscard]] Result load_from_yaml_file(T& config, const std::string& path) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -68,6 +72,10 @@ template <typename T>
 template <typename T, typename Validator>
 [[nodiscard]] Result load_from_yaml_file_and_validate(T& config, const std::string& path,
                                                       Validator&& validator) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     auto r = load_from_yaml_file(config, path);
     if (!r.ok()) {
         return r;
@@ -82,6 +90,10 @@ template <typename T, typename Validator>
 /// Load a YAML string into a struct with optional-field audit.
 template <typename T>
 [[nodiscard]] Result load_from_yaml_string(T& config, const std::string& yaml_str) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     try {
         iguana::from_yaml(config, yaml_str);
     } catch (const std::exception& e) {
@@ -113,6 +125,10 @@ template <typename T>
 template <typename T, typename Validator>
 [[nodiscard]] Result load_from_yaml_string_and_validate(T& config, const std::string& yaml_str,
                                                         Validator&& validator) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     auto r = load_from_yaml_string(config, yaml_str);
     if (!r.ok()) {
         return r;
@@ -134,6 +150,10 @@ template <typename T, typename Validator>
 template <typename T>
 [[nodiscard]] Result load_from_yaml_string(T& config, const std::string& yaml_str,
                                            std::string_view expected_schema_version) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     if (!expected_schema_version.empty()) {
         // Line-aware scan: the old raw find("$schema:")
         // matched inside # comments.  Walk lines, skip line-leading
@@ -212,6 +232,10 @@ template <typename T, typename Validator>
 [[nodiscard]] Result load_from_yaml_string_and_validate(T& config, const std::string& yaml_str,
                                                         Validator&& validator,
                                                         std::string_view expected_schema_version) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     auto r = load_from_yaml_string(config, yaml_str, expected_schema_version);
     if (!r.ok()) {
         return r;
@@ -227,6 +251,10 @@ template <typename T, typename Validator>
 template <typename T>
 [[nodiscard]] Result load_from_yaml_file(T& config, const std::string& path,
                                          std::string_view expected_schema_version) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -254,6 +282,10 @@ template <typename T, typename Validator>
 [[nodiscard]] Result load_from_yaml_file_and_validate(T& config, const std::string& path,
                                                       Validator&& validator,
                                                       std::string_view expected_schema_version) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     auto r = load_from_yaml_file(config, path, expected_schema_version);
     if (!r.ok()) {
         return r;
@@ -277,6 +309,10 @@ template <typename T, typename Validator>
 /// \return  The YAML string, or std::nullopt if serialization throws.
 template <typename T>
 std::optional<std::string> to_yaml(const T& config, std::string* err_msg = nullptr) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     try {
         std::string ss;
         iguana::to_yaml(config, ss, 0);
@@ -307,6 +343,10 @@ std::optional<std::string> to_yaml(const T& config, std::string* err_msg = nullp
 ///          kFileWriteError on failure.
 template <typename T>
 [[nodiscard]] Result save_to_yaml_file(const T& config, const std::string& path) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     std::string serialize_err;
     auto yaml_opt = to_yaml(config, &serialize_err);
     if (!yaml_opt.has_value()) {

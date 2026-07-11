@@ -33,6 +33,10 @@ namespace light_config {
 template <typename T>
 [[nodiscard]] Result load_from_json_file(T& config, const std::string& path,
                                          std::string_view expected_schema_version = "") {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -115,6 +119,10 @@ template <typename T, typename Validator>
 [[nodiscard]] Result load_from_json_file_and_validate(
     T& config, const std::string& path, Validator&& validator,
     std::string_view expected_schema_version = "") {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     auto r = load_from_json_file(config, path, expected_schema_version);
     if (!r.ok()) {
         return r;
@@ -136,6 +144,10 @@ template <typename T, typename Validator>
 template <typename T>
 [[nodiscard]] Result load_from_json_string(T& config, const std::string& json_str,
                                            std::string_view expected_schema_version = "") {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     auto result = Result::success();
 
     // ---- Optional-field audit via recursive DOM walk ----
@@ -202,6 +214,10 @@ template <typename T, typename Validator>
 [[nodiscard]] Result load_from_json_string_and_validate(
     T& config, const std::string& json_str, Validator&& validator,
     std::string_view expected_schema_version = "") {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     auto r = load_from_json_string(config, json_str, expected_schema_version);
     if (!r.ok()) {
         return r;
@@ -228,6 +244,10 @@ template <typename T, typename Validator>
 template <typename T>
 std::optional<std::string> to_json(const T& config, bool pretty = false,
                                    std::string* err_msg = nullptr) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     try {
         iguana::string_stream ss;
         iguana::to_json(config, ss);
@@ -264,6 +284,10 @@ std::optional<std::string> to_json(const T& config, bool pretty = false,
 template <typename T>
 [[nodiscard]] Result save_to_json_file(const T& config, const std::string& path,
                                        bool pretty = true) {
+    static_assert(ylt::reflection::is_ylt_refl_v<T>,
+                  "T must be annotated with YLT_REFL(...). "
+                  "Add YLT_REFL(YourStruct, field1, field2, ...) after the struct definition.");
+
     std::string serialize_err;
     auto json_opt = to_json(config, pretty, &serialize_err);
     if (!json_opt.has_value()) {
