@@ -47,7 +47,7 @@ inline Format detect_format(const std::string& path) {
 /// `.yaml` / `.yml` → YAML; `.json` → JSON; unrecognized extension →
 /// kUnrecognizedFormat error.
 template <typename T>
-Result load(T& config, const std::string& path, Format format = Format::Auto) {
+[[nodiscard]] Result load(T& config, const std::string& path, Format format = Format::Auto) {
     if (format == Format::Auto) {
         format = detect_format(path);
     }
@@ -69,8 +69,9 @@ Result load(T& config, const std::string& path, Format format = Format::Auto) {
 /// preserves backward compatibility — existing callers that don't use
 /// schema versioning are unaffected.
 template <typename T>
-Result load_versioned(T& config, const std::string& path, std::string_view expected_schema_version,
-                      Format format = Format::Auto) {
+[[nodiscard]] Result load_versioned(T& config, const std::string& path,
+                                    std::string_view expected_schema_version,
+                                    Format format = Format::Auto) {
     if (format == Format::Auto) {
         format = detect_format(path);
     }

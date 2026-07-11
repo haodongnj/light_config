@@ -31,8 +31,8 @@ namespace light_config {
 /// \param[in]  expected_schema_version  If non-empty, check `$schema` key.
 /// \return     Result with code==kOk and field audit on success.
 template <typename T>
-Result load_from_json_file(T& config, const std::string& path,
-                           std::string_view expected_schema_version = "") {
+[[nodiscard]] Result load_from_json_file(T& config, const std::string& path,
+                                         std::string_view expected_schema_version = "") {
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -101,8 +101,8 @@ Result load_from_json_file(T& config, const std::string& path,
 /// kSchemaMismatch.  If `"$schema"` is absent, loading proceeds (the check
 /// is advisory — callers that require the key should verify separately).
 template <typename T>
-Result load_from_json_string(T& config, const std::string& json_str,
-                             std::string_view expected_schema_version = "") {
+[[nodiscard]] Result load_from_json_string(T& config, const std::string& json_str,
+                                           std::string_view expected_schema_version = "") {
     auto result = Result::success();
 
     // ---- Optional-field audit via recursive DOM walk ----
@@ -195,7 +195,8 @@ std::optional<std::string> to_json(const T& config, bool pretty = false,
 /// \return  Result with code==kOk on success; kJsonSerializeError or
 ///          kFileWriteError on failure.
 template <typename T>
-Result save_to_json_file(const T& config, const std::string& path, bool pretty = true) {
+[[nodiscard]] Result save_to_json_file(const T& config, const std::string& path,
+                                       bool pretty = true) {
     std::string serialize_err;
     auto json_opt = to_json(config, pretty, &serialize_err);
     if (!json_opt.has_value()) {
