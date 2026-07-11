@@ -98,14 +98,14 @@ enum class Format {
 ///
 /// On success: code == kOk, absent_optionals and present_fields are populated.
 /// On failure: code != kOk, message carries detail suitable for logging.
-struct Result {
+struct [[nodiscard]] Result {
     ErrorCode code = ErrorCode::kOk;
 
     /// Human-readable detail. Set when code != kOk; may be empty.
     std::string message;
 
     /// Shortcut: true when code == kOk.
-    bool ok() const noexcept {
+    [[nodiscard]] bool ok() const noexcept {
         return code == ErrorCode::kOk;
     }
 
@@ -120,12 +120,12 @@ struct Result {
     std::vector<std::string> present_fields;
 
     /// Factory: success result.
-    static Result success() {
+    [[nodiscard]] static Result success() {
         return Result{};
     }
 
     /// Factory: failure with an error code and optional message.
-    static Result failure(ErrorCode c, std::string msg = "") {
+    [[nodiscard]] static Result failure(ErrorCode c, std::string msg = "") {
         Result r;
         r.code = c;
         r.message = std::move(msg);

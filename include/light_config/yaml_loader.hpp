@@ -28,7 +28,7 @@ namespace light_config {
 /// \param[in]  path    Path to the YAML file.
 /// \return     Result with code==kOk and field audit on success.
 template <typename T>
-Result load_from_yaml_file(T& config, const std::string& path) {
+[[nodiscard]] Result load_from_yaml_file(T& config, const std::string& path) {
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -52,7 +52,7 @@ Result load_from_yaml_file(T& config, const std::string& path) {
 
 /// Load a YAML string into a struct with optional-field audit.
 template <typename T>
-Result load_from_yaml_string(T& config, const std::string& yaml_str) {
+[[nodiscard]] Result load_from_yaml_string(T& config, const std::string& yaml_str) {
     try {
         iguana::from_yaml(config, yaml_str);
     } catch (const std::exception& e) {
@@ -74,8 +74,8 @@ Result load_from_yaml_string(T& config, const std::string& yaml_str) {
 /// comments (e.g. `name: x # $schema: 2.0.0`) are out of scope.  For strict
 /// checking, use the JSON format.
 template <typename T>
-Result load_from_yaml_string(T& config, const std::string& yaml_str,
-                             std::string_view expected_schema_version) {
+[[nodiscard]] Result load_from_yaml_string(T& config, const std::string& yaml_str,
+                                           std::string_view expected_schema_version) {
     if (!expected_schema_version.empty()) {
         // Line-aware scan: the old raw find("$schema:")
         // matched inside # comments.  Walk lines, skip line-leading
@@ -138,8 +138,8 @@ Result load_from_yaml_string(T& config, const std::string& yaml_str,
 
 /// Load a YAML file with optional schema version check.
 template <typename T>
-Result load_from_yaml_file(T& config, const std::string& path,
-                           std::string_view expected_schema_version) {
+[[nodiscard]] Result load_from_yaml_file(T& config, const std::string& path,
+                                         std::string_view expected_schema_version) {
     // Read file content.
     std::string content;
     if (auto r = detail::read_file_into_string(path, content); !r.ok()) {
@@ -190,7 +190,7 @@ std::optional<std::string> to_yaml(const T& config, std::string* err_msg = nullp
 /// \return  Result with code==kOk on success; kYamlSerializeError or
 ///          kFileWriteError on failure.
 template <typename T>
-Result save_to_yaml_file(const T& config, const std::string& path) {
+[[nodiscard]] Result save_to_yaml_file(const T& config, const std::string& path) {
     std::string serialize_err;
     auto yaml_opt = to_yaml(config, &serialize_err);
     if (!yaml_opt.has_value()) {
