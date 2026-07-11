@@ -23,7 +23,7 @@ namespace light_config {
 /// `.yaml` / `.yml` → YAML; `.json` → JSON; no extension → JSON (default);
 /// anything else → Auto (caller should return kUnrecognizedFormat).
 /// Extension matching is case-insensitive (`.YAML`, `.JSON`, `.Yml` all
-/// recognized) — REVIEW.md H3.
+/// recognized).
 inline Format detect_format(const std::string& path) {
     auto dot = path.rfind('.');
     if (dot == std::string::npos)

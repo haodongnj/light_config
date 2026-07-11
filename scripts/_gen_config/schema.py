@@ -22,7 +22,7 @@ from .exceptions import GeneratorError
 
 # iguana's enum_value<T>::value is std::array<int, N>, so every enumerator
 # value must fit in a C++ `int`.  Python ints are unbounded, so the parser
-# must reject out-of-range values explicitly (C3).
+# must reject out-of-range values explicitly.
 _INT32_MIN = -2147483648
 _INT32_MAX = 2147483647
 
@@ -221,7 +221,7 @@ class SchemaModel:
                     # an explicit enumerator value must fit in a C++ `int`.
                     # A value >= 2**31 or < -2**31 would emit a narrowing
                     # error in both the enum definition and the specialization
-                    # (C3).
+                    # 
                     if not (_INT32_MIN <= val <= _INT32_MAX):
                         raise GeneratorError(
                             f"[{csv_name}:{line_num}] __enum__ row "
@@ -345,7 +345,7 @@ class SchemaModel:
                 if csv_type in INT_TYPES:
                     self._validate_int_literals(row, csv_type)
 
-                # Reject non-empty defaults on vector<*> fields (C1).  The
+                # Reject non-empty defaults on vector<*> fields.  The
                 # generator has no C++ initializer syntax for vector literals
                 # today — a non-empty default would be emitted verbatim and
                 # produce non-compiling code (e.g. `std::vector<int> v = 1,2,3;`
@@ -363,13 +363,13 @@ class SchemaModel:
 
                 # Reject min/max on types where a C++ ordering comparison is
                 # either meaningless or non-compiling:
-                #   - enum   (C4 / original guard): range constraints on enums
+                #   - enum   (original guard): range constraints on enums
                 #     have no meaning; yalantinglibs rejects bad enumerators.
-                #   - string (C4): `cfg.s < 5` is `std::string` vs `int` —
+                #   - string: `cfg.s < 5` is `std::string` vs `int` —
                 #     no implicit conversion → compile error.
-                #   - bool   (C4): compiles but is semantically meaningless
+                #   - bool: compiles but is semantically meaningless
                 #     (bool promoted to int).
-                #   - vector<*> (C4): `cfg.v < 1` is `std::vector` vs `int` →
+                #   - vector<*>: `cfg.v < 1` is `std::vector` vs `int` →
                 #     compile error.  A length/size constraint would need its
                 #     own codegen.
                 is_unconstrainable = (

@@ -14,7 +14,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ```bash
 # Configure & build
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
 cmake --build build
 
 # Run all tests via CTest

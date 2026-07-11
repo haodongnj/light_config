@@ -2,7 +2,7 @@
 """Generator edge-probe harness.
 
 Promotes the 18 CSV probes that lived under build/edge_probes/ (gitignored,
-created during the REVIEW.md audit) into a permanent self-test.  Each CSV is
+created during a code audit) into a permanent self-test.  Each CSV is
 read from tests/edge_probes/<name>.csv and run through gen_config.py:
 
   COMPILE probes — generate, then -fsyntax-only the output under -Werror

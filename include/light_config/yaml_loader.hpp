@@ -77,7 +77,7 @@ template <typename T>
 Result load_from_yaml_string(T& config, const std::string& yaml_str,
                              std::string_view expected_schema_version) {
     if (!expected_schema_version.empty()) {
-        // Line-aware scan (REVIEW.md H1): the old raw find("$schema:")
+        // Line-aware scan: the old raw find("$schema:")
         // matched inside # comments.  Walk lines, skip line-leading
         // comments, and match $schema: only at the start of the line's
         // content.  This is NOT a full YAML parser — mid-line comments
@@ -106,7 +106,7 @@ Result load_from_yaml_string(T& config, const std::string& yaml_str,
                     auto ve = lv.find_last_not_of(" \t");
                     if (ve != std::string_view::npos)
                         lv = lv.substr(0, ve + 1);
-                    // Strip one surrounding pair of " or ' (H2).
+                    // Strip one surrounding pair of " or '.
                     if (lv.size() >= 2) {
                         char f = lv.front(), l = lv.back();
                         if ((f == '"' && l == '"') || (f == '\'' && l == '\''))

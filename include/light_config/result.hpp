@@ -148,7 +148,7 @@ inline constexpr bool is_optional_v = is_optional<T>::value;
 
 /// Trait: true for std::vector<T> and std::array<T,N> (ranges of resizable /
 /// fixed elements). Used by audit_json_recursive to recurse into arrays of
-/// YLT_REFL structs (REVIEW.md H6).
+/// YLT_REFL structs.
 template <typename T>
 struct is_range : std::false_type {};
 template <typename T, typename Alloc>

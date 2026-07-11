@@ -62,6 +62,10 @@ target_include_directories(light_config SYSTEM INTERFACE
 # ---- Examples ----
 add_subdirectory(examples)
 
-# ---- Tests ----
-enable_testing()
-add_subdirectory(tests)
+# ---- Tests (opt-in: -DBUILD_TESTS=ON) ----
+option(BUILD_TESTS "Build and run tests" OFF)
+message(STATUS "BUILD_TESTS = ${BUILD_TESTS}")
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

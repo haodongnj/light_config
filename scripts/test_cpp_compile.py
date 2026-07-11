@@ -9,8 +9,8 @@ INT64_MIN literals, min/max emitted on non-ordered types, …).
 
 This harness regenerates a small CSV into a temp dir and actually invokes the
 C++ compiler (`-fsyntax-only`) on the output.  It is the integration test the
-main review (REVIEW.md, finding M10) identified as the missing guard that let
-the CRITICAL generator defects C1–C4 and C7b reach master undetected.
+compile check identified as the missing guard that let
+the CRITICAL generator defects reach master undetected.
 
 Run as a plain script:  python3 scripts/test_cpp_compile.py
 Exits nonzero on the first failing assertion.  Requires a C++17 compiler on
@@ -37,8 +37,8 @@ from _gen_test_helpers import (  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Happy-path: the full integer width matrix compiles and links to light_config.
-# This is the broad guard REVIEW.md M10 asked for — it would have caught
-# C1–C4 and C7b before they reached master.
+# This is the broad compile guard — it would have caught
+# these before they reached master.
 # ---------------------------------------------------------------------------
 
 
@@ -72,12 +72,12 @@ def test_full_type_matrix_compiles() -> None:
 
 
 # ---------------------------------------------------------------------------
-# C2: string defaults containing " or \ must compile.
+# string defaults containing " or \ must compile.
 # ---------------------------------------------------------------------------
 
 
 def test_string_default_with_quote_compiles() -> None:
-    """A string default containing a double-quote compiles (C2)."""
+    """A string default containing a double-quote compiles (escape fix)."""
     if not _COMPILER:
         check(True, "compile test skipped (no compiler)")
         return
@@ -92,7 +92,7 @@ def test_string_default_with_quote_compiles() -> None:
 
 
 def test_string_default_with_backslash_compiles() -> None:
-    """A string default containing a backslash compiles (C2)."""
+    """A string default containing a backslash compiles (escape fix)."""
     if not _COMPILER:
         check(True, "compile test skipped (no compiler)")
         return
@@ -107,12 +107,12 @@ def test_string_default_with_backslash_compiles() -> None:
 
 
 # ---------------------------------------------------------------------------
-# C7b: int64 INT64_MIN (and uint64 INT64_MAX-ish) literals compile under -Werror.
+# int64 INT64_MIN (and uint64 INT64_MAX-ish) literals compile under -Werror.
 # ---------------------------------------------------------------------------
 
 
 def test_int64_min_default_compiles_clean() -> None:
-    """int64 default = INT64_MIN compiles under -Werror (C7b)."""
+    """int64 default = INT64_MIN compiles under -Werror (portable-literal fix)."""
     if not _COMPILER:
         check(True, "compile test skipped (no compiler)")
         return
@@ -128,7 +128,7 @@ def test_int64_min_default_compiles_clean() -> None:
 
 
 def test_uint64_max_default_compiles_clean() -> None:
-    """uint64 default = UINT64_MAX compiles under -Werror (C7b)."""
+    """uint64 default = UINT64_MAX compiles under -Werror (portable-literal fix)."""
     if not _COMPILER:
         check(True, "compile test skipped (no compiler)")
         return
@@ -167,12 +167,12 @@ def test_int64_min_bound_emitted_portably() -> None:
 
 
 # ---------------------------------------------------------------------------
-# C1: non-empty vector defaults must be REJECTED (no valid C++ emission today).
+# non-empty vector defaults must be REJECTED (no valid C++ emission today).
 # ---------------------------------------------------------------------------
 
 
 def test_vector_string_default_rejected() -> None:
-    """A non-empty vector<string> default is rejected, not silently emitted (C1)."""
+    """A non-empty vector<string> default is rejected, not silently emitted (vector-default fix)."""
     csv_text = (
         'field_name,group,type,default,min,max,optional,description\n'
         'vs,Mix,vector<string>,"[""a"",""b""]",,,false,vector default\n'
@@ -181,7 +181,7 @@ def test_vector_string_default_rejected() -> None:
 
 
 def test_vector_int_default_rejected() -> None:
-    """A non-empty vector<int> default is rejected, not silently emitted (C1)."""
+    """A non-empty vector<int> default is rejected, not silently emitted (vector-default fix)."""
     csv_text = (
         "field_name,group,type,default,min,max,optional,description\n"
         "vi,Mix,vector<int>,1|2|3,,,false,vector int default\n"
@@ -190,7 +190,7 @@ def test_vector_int_default_rejected() -> None:
 
 
 def test_vector_double_default_rejected() -> None:
-    """A non-empty vector<double> default is rejected (C1)."""
+    """A non-empty vector<double> default is rejected (vector-default fix)."""
     csv_text = (
         "field_name,group,type,default,min,max,optional,description\n"
         "vd,Mix,vector<double>,1.5|2.5,,,false,vector double default\n"
@@ -212,12 +212,12 @@ def test_empty_vector_default_still_allowed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# C3: enum explicit values outside int range must be rejected.
+# enum explicit values outside int range must be rejected.
 # ---------------------------------------------------------------------------
 
 
 def test_enum_value_above_int_max_rejected() -> None:
-    """An enum explicit value >= 2**31 is rejected (C3)."""
+    """An enum explicit value >= 2**31 is rejected (enum-int-range fix)."""
     csv_text = (
         "__enum__,enum_name=Over,enum_def=a=2147483648,hpp_file=x.hpp\n"
         "field_name,group,type,default,min,max,optional,description\n"
@@ -227,7 +227,7 @@ def test_enum_value_above_int_max_rejected() -> None:
 
 
 def test_enum_value_below_int_min_rejected() -> None:
-    """An enum explicit value < -2**31 is rejected (C3)."""
+    """An enum explicit value < -2**31 is rejected (enum-int-range fix)."""
     csv_text = (
         "__enum__,enum_name=Under,enum_def=a=-2147483649,hpp_file=x.hpp\n"
         "field_name,group,type,default,min,max,optional,description\n"
@@ -237,7 +237,7 @@ def test_enum_value_below_int_min_rejected() -> None:
 
 
 def test_enum_value_at_int_max_allowed() -> None:
-    """An enum explicit value == INT32_MAX is allowed (boundary, C3)."""
+    """An enum explicit value == INT32_MAX is allowed (boundary)."""
     if not _COMPILER:
         check(True, "compile test skipped (no compiler)")
         return
@@ -253,12 +253,12 @@ def test_enum_value_at_int_max_allowed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# C4: min/max on string / bool / vector<*> must be rejected.
+# min/max on string / bool / vector<*> must be rejected.
 # ---------------------------------------------------------------------------
 
 
 def test_min_max_on_string_rejected() -> None:
-    """min/max on a string field is rejected, not emitted as non-compiling code (C4)."""
+    """min/max on a string field is rejected, not emitted as non-compiling code (non-ordered-type fix)."""
     for col, val in (("min", "1"), ("max", "100")):
         other = "" if col == "min" else "1"
         csv_text = (
@@ -269,7 +269,7 @@ def test_min_max_on_string_rejected() -> None:
 
 
 def test_min_max_on_bool_rejected() -> None:
-    """min/max on a bool field is rejected (C4)."""
+    """min/max on a bool field is rejected (non-ordered-type fix)."""
     for col, val in (("min", "0"), ("max", "1")):
         other = "" if col == "min" else "0"
         csv_text = (
@@ -280,7 +280,7 @@ def test_min_max_on_bool_rejected() -> None:
 
 
 def test_min_max_on_vector_rejected() -> None:
-    """min/max on a vector<*> field is rejected (C4)."""
+    """min/max on a vector<*> field is rejected (non-ordered-type fix)."""
     for vtype in ("vector<string>", "vector<int>", "vector<double>"):
         # Optional vector (no default) carrying a min/max bound.  The
         # bound is what we want rejected — everything else is valid.
