@@ -270,6 +270,106 @@ connection:
         std::cout << "[PASS] Full valid YAML file loaded and validated.\n";
     }
 
+    // ---- Combined load+validate: JSON string (happy path) ----
+    // load_from_json_string_and_validate() loads AND validates in one call.
+    // If loading fails, the load error is returned without calling the validator.
+    // If loading succeeds, the validator runs; validation failure → kValidationError.
+    {
+        const std::string good_json = R"({
+            "debug": false,
+            "server": {
+                "host": "0.0.0.0",
+                "port": 8080,
+                "backlog": 128
+            },
+            "connection": {
+                "protocol": "http",
+                "max_connections": 1000,
+                "timeout_sec": 30.0,
+                "retry_times": 3
+            }
+        })";
+
+        AppConfig cfg;
+        auto r =
+            light_config::load_from_json_string_and_validate(cfg, good_json, validate_AppConfig);
+        assert(r.ok());
+        assert(cfg.server.port == 8080);
+        assert(cfg.connection.max_connections == 1000);
+        std::cout << "[PASS] load_from_json_string_and_validate: happy path.\n";
+    }
+
+    // ---- Combined load+validate: JSON string (validation fails) ----
+    {
+        const std::string bad_json = R"({
+            "debug": false,
+            "server": {
+                "host": "0.0.0.0",
+                "port": 70000
+            },
+            "connection": {
+                "max_connections": 200000,
+                "timeout_sec": 0.1
+            }
+        })";
+
+        AppConfig cfg;
+        auto r =
+            light_config::load_from_json_string_and_validate(cfg, bad_json, validate_AppConfig);
+        assert(!r.ok());
+        assert(r.code == light_config::ErrorCode::kValidationError);
+        std::cout << "[PASS] load_from_json_string_and_validate: validation failed as expected.\n";
+    }
+
+    // ---- Combined load+validate: YAML string (happy path) ----
+    {
+        const std::string good_yaml = R"(
+    debug: false
+    server:
+      host: "0.0.0.0"
+      port: 8080
+      backlog: 128
+    connection:
+      protocol: http
+      max_connections: 1000
+      timeout_sec: 30.0
+      retry_times: 3
+    )";
+
+        AppConfig cfg;
+        auto r =
+            light_config::load_from_yaml_string_and_validate(cfg, good_yaml, validate_AppConfig);
+        assert(r.ok());
+        assert(cfg.server.port == 8080);
+        assert(cfg.connection.max_connections == 1000);
+        std::cout << "[PASS] load_from_yaml_string_and_validate: happy path.\n";
+    }
+
+    // ---- Combined load+validate: format-agnostic file load ----
+    // load_and_validate() auto-detects format from file extension.
+    {
+        auto path = (std::filesystem::path(__FILE__).parent_path() / "valid_config.json").string();
+
+        AppConfig cfg;
+        auto r = light_config::load_and_validate(cfg, path, validate_AppConfig);
+        assert(r.ok());
+        assert(cfg.server.port == 8080);
+        assert(cfg.connection.max_connections == 1000);
+        std::cout << "[PASS] load_and_validate: JSON file, format-agnostic.\n";
+    }
+
+    // ---- Combined load+validate: YAML file via format-agnostic ----
+    {
+        auto path = (std::filesystem::path(__FILE__).parent_path() / "valid_config.yaml").string();
+
+        AppConfig cfg;
+        auto r = light_config::load_and_validate(cfg, path, validate_AppConfig);
+        assert(r.ok());
+        assert(cfg.server.port == 8080);
+        assert(cfg.connection.max_connections == 1000);
+        std::cout << "[PASS] load_and_validate: YAML file, format-agnostic.\n";
+    }
+
     std::cout << "\nAll examples passed.\n";
     return 0;
 }
