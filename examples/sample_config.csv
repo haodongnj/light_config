@@ -2,6 +2,7 @@ __metadata__,namespace=app,schema_version=1.0.0,generator=light_config,,,,,
 __enum__,enum_name=LogLevel,enum_def=debug|info|warn|error,hpp_file=network_config.hpp,,,,,
 __enum__,enum_name=Protocol,enum_def=http=80|https=443|ssh=22,hpp_file=network_config.hpp,,,,,
 __enum__,enum_name=Color,enum_def=red|green|blue,hpp_file=app_config.hpp,namespace=app,,,,
+
 field_name,group,type,default,min,max,optional,description,hpp_file
 debug,AppConfig,bool,false,,,false,Enable debug logging,app_config.hpp
 log_file,AppConfig,string,/var/log/app.log,,,false,Log file path,app_config.hpp

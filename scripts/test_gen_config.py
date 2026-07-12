@@ -631,6 +631,45 @@ def test_enum_min_max_rejected() -> None:
         check(_generate_exits(csv_text),
               f"enum field with '{col_name}' constraint is rejected")
 
+
+def test_blank_lines_accepted() -> None:
+    """Blank lines between metadata/header/data rows are ignored."""
+    csv_text = (
+        "__metadata__,schema_version=1.0\n"
+        "\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
+        "\n"
+        "msg,MyConfig,string,hello,,,false,Message\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("int32_t v = 42;" in hpp,
+          "field before blank line in data rows")
+    check("std::string msg" in hpp,
+          "field after blank line in data rows")
+
+
+def test_blank_line_only_csv_rejected() -> None:
+    """A CSV containing only blank lines should be rejected."""
+    csv_text = "\n\n\n"
+    check(_generate_exits(csv_text),
+          "CSV with only blank lines is rejected")
+
+
+def test_blank_line_between_metadata_and_header() -> None:
+    """Blank line between metadata and the column-header row should be ignored."""
+    csv_text = (
+        "__metadata__,namespace=ns\n"
+        "\n"
+        "field_name,group,type,default,min,max,optional,description\n"
+        "v,MyConfig,int,42,0,100,false,Value\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("namespace ns {" in hpp,
+          "blank line between metadata and header: namespace emitted")
+    check("int32_t v = 42;" in hpp,
+          "blank line between metadata and header: field emitted")
+
 def main() -> int:
     test_type_mapping()
     test_unknown_type_rejected()
@@ -671,6 +710,9 @@ def main() -> int:
     test_enum_namespace_in_specialization_qualifies_type()
     test_enum_no_namespace_defaults_to_global_scope()
     test_enum_min_max_rejected()
+    test_blank_lines_accepted()
+    test_blank_line_only_csv_rejected()
+    test_blank_line_between_metadata_and_header()
     if _FAIL:
         print(f"\n{_FAIL} self-test(s) failed.")
         return 1

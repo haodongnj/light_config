@@ -106,6 +106,10 @@ class SchemaModel:
                 row[0] = str(n_meta + 1)
                 enum_rows.append(row)
 
+        # Skip blank lines before the column header.
+        while parsed and not parsed[0]:
+            parsed.pop(0)
+
         if len(parsed) < 2:
             raise GeneratorError("CSV file is empty.")
 
@@ -116,6 +120,9 @@ class SchemaModel:
 
         rows: list[dict] = []
         for i, line in enumerate(parsed[1:], start=2 + n_meta):
+            # Skip blank lines (csv.reader returns [] for them).
+            if not line:
+                continue
             row = dict(zip(header, line))
             row["_csv_line"] = i
             row["_csv_name"] = inpath.name
