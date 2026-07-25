@@ -9,13 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .types import (
-    _BUILTIN_TYPES,
-    _VECTOR_TYPES,
+    _TYPE_REGISTRY,
     _is_optional,
     _int_range,
     _row_location,
     _struct_to_hpp_name,
-    INT_TYPES,
 )
 from .exceptions import GeneratorError
 
@@ -336,28 +334,33 @@ class SchemaModel:
 
         Runs after _classify_groups, which has already routed any row whose
         type names a *present* group into the nested-member lists.  So every
-        regular row's type must be a built-in CSV type — a type cell naming a
-        non-existent struct surfaces here as an unknown type.
+        regular row's type must be in the type registry — a type cell naming
+        a non-existent struct surfaces here as an unknown type.
         """
         for gname in self.ordered_groups_actual():
             for row in self.group_regular[gname]:
                 csv_type = row["type"].strip()
-                if csv_type not in _BUILTIN_TYPES and csv_type not in self.enums:
+                ti = _TYPE_REGISTRY.get(csv_type)
+
+                # ---- unknown type ----
+                if ti is None and csv_type not in self.enums:
                     raise GeneratorError(
                         f"[{row.get('_csv_name','')}:{row.get('_csv_line','')}] "
                         f"field '{row['field_name'].strip()}' has unknown type "
                         f"'{csv_type}'."
                     )
 
-                if csv_type in INT_TYPES:
+                # ---- integer literal range validation ----
+                if ti is not None and ti.is_integer:
                     self._validate_int_literals(row, csv_type)
 
-                # Reject non-empty defaults on vector<*> fields.  The
-                # generator has no C++ initializer syntax for vector literals
-                # today — a non-empty default would be emitted verbatim and
-                # produce non-compiling code (e.g. `std::vector<int> v = 1,2,3;`
-                # or `= ["a","b"];`).  An empty/absent default is fine.
-                if csv_type in _VECTOR_TYPES:
+                # ---- reject non-empty defaults on vector<*> fields ----
+                # The generator has no C++ initializer syntax for vector
+                # literals today — a non-empty default would be emitted
+                # verbatim and produce non-compiling code (e.g.
+                # `std::vector<int> v = 1,2,3;` or `= ["a","b"];`).
+                # An empty/absent default is fine.
+                if ti is not None and ti.is_vector:
                     default = (row.get("default") or "").strip()
                     if default:
                         where = _row_location(row)
@@ -368,22 +371,20 @@ class SchemaModel:
                             f"defaults are not supported (leave the cell empty)."
                         )
 
-                # Reject min/max on types where a C++ ordering comparison is
-                # either meaningless or non-compiling:
-                #   - enum   (original guard): range constraints on enums
-                #     have no meaning; yalantinglibs rejects bad enumerators.
-                #   - string: `cfg.s < 5` is `std::string` vs `int` —
-                #     no implicit conversion → compile error.
-                #   - bool: compiles but is semantically meaningless
-                #     (bool promoted to int).
-                #   - vector<*>: `cfg.v < 1` is `std::vector` vs `int` →
-                #     compile error.  A length/size constraint would need its
-                #     own codegen.
+                # ---- reject min/max on types where a C++ ordering ----
+                # ---- comparison is either meaningless or non-compiling  ----
+                #   - enum:    range constraints on enums have no meaning;
+                #              yalantinglibs rejects bad enumerators.
+                #   - string:  `cfg.s < 5` is `std::string` vs `int` —
+                #              no implicit conversion → compile error.
+                #   - bool:    compiles but is semantically meaningless
+                #              (bool promoted to int).
+                #   - vector:  `cfg.v < 1` is `std::vector` vs `int` →
+                #              compile error.  A length/size constraint would
+                #              need its own codegen.
                 is_unconstrainable = (
                     csv_type in self.enums
-                    or csv_type == "string"
-                    or csv_type == "bool"
-                    or csv_type in _VECTOR_TYPES
+                    or (ti is not None and not ti.is_numeric)
                 )
                 if is_unconstrainable:
                     for col in ("min", "max"):
@@ -491,7 +492,8 @@ class SchemaModel:
         """Check whether a specific group contains any integer-type fields."""
         for row in self.group_regular.get(gname, []):
             csv_type = row["type"].strip()
-            if csv_type in INT_TYPES:
+            ti = _TYPE_REGISTRY.get(csv_type)
+            if ti is not None and ti.is_integer:
                 return True
         return False
 
