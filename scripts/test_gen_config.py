@@ -670,6 +670,106 @@ def test_blank_line_between_metadata_and_header() -> None:
     check("int32_t v = 42;" in hpp,
           "blank line between metadata and header: field emitted")
 
+def test_nested_vector_int_type_mapping() -> None:
+    """CSV vector<vector<int>> maps to std::vector<std::vector<int32_t>>."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "matrix,MyConfig,vector<vector<int>>,,,,true,2D matrix\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("std::optional<std::vector<std::vector<int32_t>>> matrix;" in hpp,
+          "vector<vector<int>> -> std::optional<std::vector<std::vector<int32_t>>>")
+
+
+def test_nested_vector_string_type_mapping() -> None:
+    """CSV vector<vector<string>> maps to std::vector<std::vector<std::string>>."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "labels,MyConfig,vector<vector<string>>,,,,true,Labels\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("std::optional<std::vector<std::vector<std::string>>> labels;" in hpp,
+          "vector<vector<string>> -> std::optional<std::vector<std::vector<std::string>>>")
+
+
+def test_nested_vector_double_type_mapping() -> None:
+    """CSV vector<vector<double>> maps to std::optional<std::vector<std::vector<double>>>."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "coords,MyConfig,vector<vector<double>>,,,,true,Coords\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("std::optional<std::vector<std::vector<double>>> coords;" in hpp,
+          "vector<vector<double>> -> std::optional<std::vector<std::vector<double>>>")
+
+
+def test_nested_vector_optional() -> None:
+    """optional=true with nested vector -> std::optional<std::vector<std::vector<T>>>."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "matrix,MyConfig,vector<vector<int>>,,,,true,Optional matrix\n"
+    )
+    _, hpp = _generate(csv_text)
+    check("std::optional<std::vector<std::vector<int32_t>>> matrix;" in hpp,
+          "optional nested vector -> std::optional<std::vector<std::vector<T>>>")
+
+
+def test_nested_vector_default_rejected() -> None:
+    """Non-empty default on nested vector type is rejected."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "matrix,MyConfig,vector<vector<int>>,1,2,3,,false,Matrix\n"
+    )
+    check(_generate_exits(csv_text),
+          "non-empty default on nested vector is rejected")
+
+
+def test_nested_vector_min_rejected() -> None:
+    """min constraint on nested vector is rejected."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "matrix,MyConfig,vector<vector<int>>,,1,,false,Matrix\n"
+    )
+    check(_generate_exits(csv_text),
+          "min constraint on nested vector is rejected")
+
+
+def test_nested_vector_max_rejected() -> None:
+    """max constraint on nested vector is rejected."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description\n"
+        "matrix,MyConfig,vector<vector<int>>,,,1,false,Matrix\n"
+    )
+    check(_generate_exits(csv_text),
+          "max constraint on nested vector is rejected")
+
+
+def test_nested_vector_empty_sample_for_optional() -> None:
+    """Optional nested vector with no default -> null in JSON sample."""
+    csv_text = (
+        "field_name,group,type,default,min,max,optional,description,hpp_file\n"
+        "matrix,MyConfig,vector<vector<int>>,,,,true,Optional matrix,my_config.hpp\n"
+    )
+    csv_path, out_dir = _write_csv(csv_text)
+    cfg = gen_config.GeneratorConfig(
+        input_csv=str(csv_path),
+        output_dir=str(out_dir),
+        generate_samples=True,
+    )
+    with open(os.devnull, "w") as devnull:
+        old_out, old_err = sys.stdout, sys.stderr
+        sys.stdout = sys.stderr = devnull
+        try:
+            gen_config.generate(cfg)
+        finally:
+            sys.stdout, sys.stderr = old_out, old_err
+    jf = out_dir / "valid_config.json"
+    check(jf.exists(), "valid_config.json emitted for optional nested vector")
+    data = jf.read_text()
+    check('"matrix": null' in data,
+          "optional nested vector with no default -> null in JSON")
+
+
 def main() -> int:
     test_type_mapping()
     test_unknown_type_rejected()
@@ -713,6 +813,14 @@ def main() -> int:
     test_blank_lines_accepted()
     test_blank_line_only_csv_rejected()
     test_blank_line_between_metadata_and_header()
+    test_nested_vector_int_type_mapping()
+    test_nested_vector_string_type_mapping()
+    test_nested_vector_double_type_mapping()
+    test_nested_vector_optional()
+    test_nested_vector_default_rejected()
+    test_nested_vector_min_rejected()
+    test_nested_vector_max_rejected()
+    test_nested_vector_empty_sample_for_optional()
     if _FAIL:
         print(f"\n{_FAIL} self-test(s) failed.")
         return 1
