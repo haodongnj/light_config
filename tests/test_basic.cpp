@@ -2,8 +2,10 @@
 #include <light_config/light_config.hpp>
 
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <doctest/doctest.h>
@@ -113,6 +115,31 @@ struct DeepLevel1 {
     int priority = 0;
 };
 YLT_REFL(DeepLevel1, cluster, middle, priority);
+
+// ---- Complex types for round-trip testing ----
+
+struct NestedVecConfig {
+    std::vector<std::vector<int>> matrix;
+    std::vector<std::vector<std::string>> table;
+};
+YLT_REFL(NestedVecConfig, matrix, table);
+
+struct MapConfig {
+    std::map<std::string, int> scores;
+    std::unordered_map<std::string, std::string> metadata;
+};
+YLT_REFL(MapConfig, scores, metadata);
+
+struct Item {
+    std::string name;
+    int count = 0;
+};
+YLT_REFL(Item, name, count);
+
+struct VecOfStructConfig {
+    std::vector<Item> items;
+};
+YLT_REFL(VecOfStructConfig, items);
 
 // ============================================================================
 // JSON Tests
@@ -693,6 +720,12 @@ TEST_CASE("Round-trip: JSON file save + load") {
     original.name = "file_rt";
     original.value = 55;
     original.flag = true;
+    original.ratio = 3.14;
+    original.opt_str = "optional_str";
+    original.opt_int = 42;
+    original.opt_double = 2.718;
+    original.numbers = {1, 2, 3, 4, 5};
+    original.tags = {"json", "file", "roundtrip"};
 
     auto r_save = light_config::save_to_json_file(original, path, false);
     CHECK(r_save.ok());
@@ -703,6 +736,21 @@ TEST_CASE("Round-trip: JSON file save + load") {
     CHECK(parsed.name == original.name);
     CHECK(parsed.value == original.value);
     CHECK(parsed.flag == original.flag);
+    CHECK(parsed.ratio == original.ratio);
+    REQUIRE(parsed.opt_str.has_value());
+    CHECK(parsed.opt_str.value() == original.opt_str.value());
+    REQUIRE(parsed.opt_int.has_value());
+    CHECK(parsed.opt_int.value() == original.opt_int.value());
+    REQUIRE(parsed.opt_double.has_value());
+    CHECK(parsed.opt_double.value() == original.opt_double.value());
+    REQUIRE(parsed.numbers.size() == original.numbers.size());
+    for (size_t i = 0; i < original.numbers.size(); ++i) {
+        CHECK(parsed.numbers[i] == original.numbers[i]);
+    }
+    REQUIRE(parsed.tags.size() == original.tags.size());
+    for (size_t i = 0; i < original.tags.size(); ++i) {
+        CHECK(parsed.tags[i] == original.tags[i]);
+    }
 }
 
 TEST_CASE("Round-trip: YAML file save + load") {
@@ -713,6 +761,12 @@ TEST_CASE("Round-trip: YAML file save + load") {
     original.name = "yaml_file_rt";
     original.value = 123;
     original.flag = false;
+    original.ratio = 2.5;
+    original.opt_str = "yaml_optional";
+    original.opt_int = 77;
+    original.opt_double = 0.125;
+    original.numbers = {10, 20, 30};
+    original.tags = {"yaml", "file", "rt"};
 
     auto r_save = light_config::save_to_yaml_file(original, path);
     CHECK(r_save.ok());
@@ -723,6 +777,21 @@ TEST_CASE("Round-trip: YAML file save + load") {
     CHECK(parsed.name == original.name);
     CHECK(parsed.value == original.value);
     CHECK(parsed.flag == original.flag);
+    CHECK(parsed.ratio == original.ratio);
+    REQUIRE(parsed.opt_str.has_value());
+    CHECK(parsed.opt_str.value() == original.opt_str.value());
+    REQUIRE(parsed.opt_int.has_value());
+    CHECK(parsed.opt_int.value() == original.opt_int.value());
+    REQUIRE(parsed.opt_double.has_value());
+    CHECK(parsed.opt_double.value() == original.opt_double.value());
+    REQUIRE(parsed.numbers.size() == original.numbers.size());
+    for (size_t i = 0; i < original.numbers.size(); ++i) {
+        CHECK(parsed.numbers[i] == original.numbers[i]);
+    }
+    REQUIRE(parsed.tags.size() == original.tags.size());
+    for (size_t i = 0; i < original.tags.size(); ++i) {
+        CHECK(parsed.tags[i] == original.tags[i]);
+    }
 }
 
 // ---- write-flush detection.  A payload larger than the typical ofstream
@@ -794,11 +863,151 @@ TEST_CASE("save_to_yaml_file: large payload round-trips (flush path)") {
     CHECK(r.ok());
     CHECK(parsed.name == original.name);
     REQUIRE(parsed.numbers.size() == original.numbers.size());
-    CHECK(parsed.numbers[0] == 0);
-    CHECK(parsed.numbers.back() == static_cast<int>(original.numbers.size() - 1));
+    for (size_t i = 0; i < original.numbers.size(); ++i) {
+        CHECK(parsed.numbers[i] == original.numbers[i]);
+    }
     REQUIRE(parsed.tags.size() == original.tags.size());
+    for (size_t i = 0; i < original.tags.size(); ++i) {
+        CHECK(parsed.tags[i] == original.tags[i]);
+    }
 
     std::filesystem::remove(path);
+}
+
+// ---- Complex type round-trip tests ----
+
+TEST_CASE("Round-trip: JSON nested vectors (vector<vector<int>> + vector<vector<string>>)") {
+    NestedVecConfig original;
+    original.matrix = {{1, 2, 3}, {4, 5}, {6, 7, 8, 9}};
+    original.table = {{"a", "b"}, {"c", "d", "e"}};
+
+    auto json_opt = light_config::to_json(original);
+    REQUIRE(json_opt.has_value());
+
+    NestedVecConfig parsed;
+    auto r = light_config::load_from_json_string(parsed, json_opt.value());
+    CHECK(r.ok());
+    REQUIRE(parsed.matrix.size() == original.matrix.size());
+    for (size_t i = 0; i < original.matrix.size(); ++i) {
+        REQUIRE(parsed.matrix[i].size() == original.matrix[i].size());
+        for (size_t j = 0; j < original.matrix[i].size(); ++j) {
+            CHECK(parsed.matrix[i][j] == original.matrix[i][j]);
+        }
+    }
+    REQUIRE(parsed.table.size() == original.table.size());
+    for (size_t i = 0; i < original.table.size(); ++i) {
+        REQUIRE(parsed.table[i].size() == original.table[i].size());
+        for (size_t j = 0; j < original.table[i].size(); ++j) {
+            CHECK(parsed.table[i][j] == original.table[i][j]);
+        }
+    }
+}
+
+TEST_CASE("Round-trip: YAML nested vectors") {
+    NestedVecConfig original;
+    original.matrix = {{10, 20}, {30}};
+    original.table = {{"x"}, {"y", "z"}};
+
+    auto yaml_opt = light_config::to_yaml(original);
+    REQUIRE(yaml_opt.has_value());
+
+    NestedVecConfig parsed;
+    auto r = light_config::load_from_yaml_string(parsed, yaml_opt.value());
+    CHECK(r.ok());
+    REQUIRE(parsed.matrix.size() == original.matrix.size());
+    for (size_t i = 0; i < original.matrix.size(); ++i) {
+        REQUIRE(parsed.matrix[i].size() == original.matrix[i].size());
+        for (size_t j = 0; j < original.matrix[i].size(); ++j) {
+            CHECK(parsed.matrix[i][j] == original.matrix[i][j]);
+        }
+    }
+    REQUIRE(parsed.table.size() == original.table.size());
+    for (size_t i = 0; i < original.table.size(); ++i) {
+        REQUIRE(parsed.table[i].size() == original.table[i].size());
+        for (size_t j = 0; j < original.table[i].size(); ++j) {
+            CHECK(parsed.table[i][j] == original.table[i][j]);
+        }
+    }
+}
+
+TEST_CASE("Round-trip: JSON maps (map<string,int> + unordered_map<string,string>)") {
+    MapConfig original;
+    original.scores = {{"alice", 95}, {"bob", 87}, {"carol", 92}};
+    original.metadata = {{"env", "production"}, {"region", "us-east-1"}};
+
+    auto json_opt = light_config::to_json(original);
+    REQUIRE(json_opt.has_value());
+
+    MapConfig parsed;
+    auto r = light_config::load_from_json_string(parsed, json_opt.value());
+    CHECK(r.ok());
+    CHECK(parsed.scores.size() == original.scores.size());
+    for (const auto& [key, val] : original.scores) {
+        REQUIRE(parsed.scores.count(key) == 1);
+        CHECK(parsed.scores[key] == val);
+    }
+    CHECK(parsed.metadata.size() == original.metadata.size());
+    for (const auto& [key, val] : original.metadata) {
+        REQUIRE(parsed.metadata.count(key) == 1);
+        CHECK(parsed.metadata[key] == val);
+    }
+}
+
+TEST_CASE("Round-trip: YAML maps") {
+    MapConfig original;
+    original.scores = {{"x", 1}, {"y", 2}};
+    original.metadata = {{"key", "value"}};
+
+    auto yaml_opt = light_config::to_yaml(original);
+    REQUIRE(yaml_opt.has_value());
+
+    MapConfig parsed;
+    auto r = light_config::load_from_yaml_string(parsed, yaml_opt.value());
+    CHECK(r.ok());
+    CHECK(parsed.scores.size() == original.scores.size());
+    for (const auto& [key, val] : original.scores) {
+        REQUIRE(parsed.scores.count(key) == 1);
+        CHECK(parsed.scores[key] == val);
+    }
+    CHECK(parsed.metadata.size() == original.metadata.size());
+    for (const auto& [key, val] : original.metadata) {
+        REQUIRE(parsed.metadata.count(key) == 1);
+        CHECK(parsed.metadata[key] == val);
+    }
+}
+
+TEST_CASE("Round-trip: JSON vector of structs") {
+    VecOfStructConfig original;
+    original.items = {{"alpha", 1}, {"beta", 2}, {"gamma", 3}};
+
+    auto json_opt = light_config::to_json(original);
+    REQUIRE(json_opt.has_value());
+
+    VecOfStructConfig parsed;
+    auto r = light_config::load_from_json_string(parsed, json_opt.value());
+    CHECK(r.ok());
+    REQUIRE(parsed.items.size() == original.items.size());
+    for (size_t i = 0; i < original.items.size(); ++i) {
+        CHECK(parsed.items[i].name == original.items[i].name);
+        CHECK(parsed.items[i].count == original.items[i].count);
+    }
+}
+
+TEST_CASE("Round-trip: YAML vector of structs") {
+    VecOfStructConfig original;
+    original.items = {{"one", 1}, {"two", 2}};
+
+    auto yaml_opt = light_config::to_yaml(original);
+    REQUIRE(yaml_opt.has_value());
+
+    VecOfStructConfig parsed;
+    auto r = light_config::load_from_yaml_string(parsed, yaml_opt.value());
+    CHECK(r.ok());
+    REQUIRE(parsed.items.size() == original.items.size());
+    for (size_t i = 0; i < original.items.size(); ++i) {
+        CHECK(parsed.items[i].name == original.items[i].name);
+        CHECK(parsed.items[i].count == original.items[i].count);
+    }
 }
 
 // ---- to_json / to_yaml expose an err out-param so save_to_* can surface
